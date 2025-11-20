@@ -1,36 +1,93 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NadineKollections E-commerce Platform
+
+A premium, modern e-commerce platform built for NadineKollections using Next.js 15, Supabase, and Paystack.
+
+## Features
+
+- **Modern Customer Frontend**:
+  - Responsive design with Framer Motion animations.
+  - Product browsing, filtering, and search.
+  - Shopping cart with persistent state.
+  - Secure checkout with Paystack integration.
+  - User accounts for order history.
+  - Bulk order requests.
+
+- **Admin Dashboard**:
+  - Comprehensive overview of sales and orders.
+  - Product management (CRUD).
+  - Order processing and status updates.
+  - Bulk order request management.
+  - Promotion code management.
+
+## Tech Stack
+
+- **Framework**: Next.js 15 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **Database**: Supabase (PostgreSQL)
+- **State Management**: Zustand
+- **Forms**: React Hook Form + Zod
+- **Payments**: Paystack
+- **Icons**: Lucide React
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- Node.js 18+
+- Supabase Account
+- Paystack Account
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Installation
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/nadinekollections.git
+   cd nadinekollections
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-## Learn More
+3. Set up environment variables:
+   Copy `.env.example` to `.env.local` and fill in your credentials.
+   ```bash
+   cp .env.example .env.local
+   ```
 
-To learn more about Next.js, take a look at the following resources:
+   Required variables:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY`
+   - `PAYSTACK_SECRET_KEY`
+   - `PAYSTACK_WEBHOOK_SECRET`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+4. Run the development server:
+   ```bash
+   npm run dev
+   ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## Deploy on Vercel
+## Database Setup
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Go to your Supabase project SQL Editor.
+2. Run the migration scripts located in `supabase/migrations/`.
+3. (Optional) Run `supabase/seed.sql` to populate test data.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Project Structure
+
+- `/app`: Next.js App Router pages and layouts.
+- `/components`: Reusable UI components.
+  - `/ui`: Base design system components (shadcn/ui style).
+  - `/shared`: Common components (Header, Footer).
+  - `/customer`: Customer-facing components.
+  - `/admin`: Admin dashboard components.
+- `/lib`: Utility functions, hooks, and store.
+- `/supabase`: Database migrations and types.
+
+## License
+
+[MIT](LICENSE)
