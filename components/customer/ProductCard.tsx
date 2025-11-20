@@ -2,8 +2,9 @@
 
 import { toast } from "sonner";
 import { useCartStore } from "@/lib/store/cart";
+import { useWishlistStore } from "@/lib/store/wishlist";
 
-import Image from "next/image";
+import { OptimizedImage } from "@/components/ui/optimized-image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Heart, ShoppingBag } from "lucide-react";
@@ -37,6 +38,7 @@ export function ProductCard({
   stock,
 }: ProductCardProps) {
   const { addItem } = useCartStore();
+  const { addItem: addToWishlist, removeItem, isInWishlist } = useWishlistStore();
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -56,18 +58,35 @@ export function ProductCard({
       </div>
 
       {/* Wishlist Button */}
-      <button className="absolute right-4 top-4 z-10 rounded-full bg-white/80 p-2 text-text-secondary backdrop-blur-sm transition-colors hover:bg-white hover:text-error">
-        <Heart className="h-5 w-5" />
+      <button
+        onClick={(e) => {
+          e.preventDefault();
+          if (isInWishlist(id)) {
+            removeItem(id);
+            toast.info("Removed from wishlist");
+          } else {
+            addToWishlist({ id, title, slug, price, image, category });
+            toast.success("Added to wishlist");
+          }
+        }}
+        className={`absolute right-4 top-4 z-10 rounded-full p-2 backdrop-blur-sm transition-colors ${
+          isInWishlist(id)
+            ? "bg-primary text-white hover:bg-primary/90"
+            : "bg-white/80 text-text-secondary hover:bg-white hover:text-error"
+        }`}
+      >
+        <Heart className={`h-5 w-5 ${isInWishlist(id) ? "fill-current" : ""}`} />
       </button>
 
       {/* Image */}
       <Link href={`/shop/${category.toLowerCase()}/${slug}`}>
         <div className="relative mb-4 aspect-square overflow-hidden rounded-xl bg-gray-100">
-          <Image
+          <OptimizedImage
             src={image}
             alt={title}
             fill
             className="object-cover transition-transform duration-500 group-hover:scale-110"
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           />
         </div>
       </Link>

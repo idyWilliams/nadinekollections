@@ -31,6 +31,10 @@ const config: Config = {
           secondary: "#4B5563",
           muted: "#9CA3AF",
         },
+        muted: {
+          DEFAULT: "#E5E7EB", // Gray-200 for skeletons
+          foreground: "#6B7280",
+        },
         border: {
           light: "#E5E7EB",
           focus: "#D4AF37", // Gold focus

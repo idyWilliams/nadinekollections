@@ -96,9 +96,7 @@ export const metadata: Metadata = {
 
 import { Toaster } from "sonner";
 
-import { Header } from "@/components/shared/Header";
-import { Footer } from "@/components/shared/Footer";
-import { WhatsAppButton } from "@/components/shared/WhatsAppButton";
+import { AppShell } from "@/components/layout/AppShell";
 
 export default function RootLayout({
   children,
@@ -110,10 +108,9 @@ export default function RootLayout({
       <body
         className={`${helix.variable} antialiased bg-background text-text-primary font-sans`}
       >
-        <Header />
-        {children}
-        <Footer />
-        <WhatsAppButton />
+        <AppShell>
+          {children}
+        </AppShell>
         <CartDrawer />
         <Toaster position="top-center" richColors />
       </body>

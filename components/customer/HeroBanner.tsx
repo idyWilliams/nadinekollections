@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { OptimizedImage } from "@/components/ui/optimized-image";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 const banners = [
@@ -79,14 +80,15 @@ export function HeroBanner() {
           transition={{ duration: 0.5 }}
           className="absolute inset-0"
         >
-          <Image
+          <OptimizedImage
             src={banners[current].image}
             alt={banners[current].title}
             fill
             className="object-cover"
             priority
+            sizes="100vw"
+            quality={100}
           />
-          <div className="absolute inset-0 bg-black/20" />
 
           <div className="absolute inset-0 flex items-center justify-center text-center">
             <div className="container px-4">

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingBag, Search, User as UserIcon, Menu, LogOut } from "lucide-react";
+import { ShoppingBag, Search, User as UserIcon, Menu, LogOut, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState, useEffect } from "react";
@@ -55,7 +55,7 @@ export function Header() {
 
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
-          <img src="/logo.png" alt="NadineKollections" className="h-12 w-auto" />
+          <img src="/logo.png" alt="NadineKollections" className="h-20 w-auto" />
         </Link>
 
         {/* Desktop Navigation */}
@@ -114,6 +114,12 @@ export function Header() {
               </Button>
             </Link>
           )}
+
+          <Link href="/wishlist">
+            <Button variant="ghost" size="icon" className="relative" title="Wishlist">
+              <Heart className="h-5 w-5" />
+            </Button>
+          </Link>
 
           <Button variant="primary" size="icon" className="relative" onClick={toggleCart}>
             <ShoppingBag className="h-5 w-5" />
