@@ -5,55 +5,72 @@ import { formatCurrency } from "@/lib/utils";
 import { ArrowLeft, MapPin, Package, Printer } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { OptimizedImage } from "@/components/ui/optimized-image";
 
 export default function OrderDetailsPage() {
   const params = useParams();
   const { id } = params;
+  const [order, setOrder] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClient();
 
-  // Mock order data
-  const order = {
-    id: id,
-    date: "2024-03-15",
-    status: "Processing",
-    total: 45000,
-    subtotal: 42500,
-    shipping: 2500,
-    customer: {
-      name: "John Doe",
-      email: "john@example.com",
-      phone: "+234 800 000 0000",
-    },
-    shippingAddress: {
-      line1: "123 Main Street",
-      city: "Lekki",
-      state: "Lagos",
-      zip: "100001",
-    },
-    items: [
-      {
-        id: "1",
-        title: "Kids Floral Dress",
-        variant: "2-3 Years",
-        price: 9500,
-        quantity: 2,
-        image: "/products/kids-1.png",
-      },
-      {
-        id: "3",
-        title: "Women Flashy Sequined Gown",
-        variant: "Small - Gold",
-        price: 42000,
-        quantity: 1,
-        image: "/products/women-1.png",
-      },
-    ],
-  };
+  useEffect(() => {
+    const fetchOrder = async () => {
+      if (!id) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .select(`
+            *,
+            user:users(full_name, email, phone)
+          `)
+          .eq('id', id)
+          .single();
+
+        if (error) throw error;
+        setOrder(data);
+      } catch (err) {
+        console.error("Error fetching order:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrder();
+  }, [id, supabase]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background py-12 px-4 md:px-8 flex items-center justify-center">
+        <div className="animate-pulse text-text-secondary">Loading order details...</div>
+      </div>
+    );
+  }
+
+  if (!order) {
+    return (
+      <div className="min-h-screen bg-background py-12 px-4 md:px-8 flex flex-col items-center justify-center gap-4">
+        <h1 className="text-2xl font-bold">Order Not Found</h1>
+        <p className="text-text-secondary">We couldn't find the order you're looking for.</p>
+        <Link href="/account">
+          <Button>Back to Orders</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  // Parse items if they are stored as JSON string, otherwise use as is
+  const orderItems = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+  const shippingAddress = typeof order.shipping_address === 'string' ? JSON.parse(order.shipping_address) : order.shipping_address;
 
   return (
     <div className="min-h-screen bg-background py-12 px-4 md:px-8">
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Link href="/account">
               <Button variant="ghost" size="icon">
@@ -62,19 +79,20 @@ export default function OrderDetailsPage() {
             </Link>
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-3">
-                Order {order.id}
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  order.status === 'Delivered' ? 'bg-success/10 text-success' :
-                  order.status === 'Processing' ? 'bg-warning/10 text-warning-foreground' :
-                  'bg-muted text-text-muted'
+                Order {order.order_number}
+                  order.order_status === 'delivered' ? 'bg-success/10 text-success border-success/20' :
+                  order.order_status === 'processing' ? 'bg-warning/10 text-warning-foreground border-warning/20' :
+                  order.order_status === 'cancelled' || order.order_status === 'failed' ? 'bg-error/10 text-error border-error/20' :
+                  order.order_status === 'returned' ? 'bg-secondary/10 text-secondary-foreground border-secondary/20' :
+                  'bg-muted text-text-muted border-border-light'
                 }`}>
-                  {order.status}
+                  {order.order_status.charAt(0).toUpperCase() + order.order_status.slice(1)}
                 </span>
               </h1>
-              <p className="text-text-secondary">Placed on {new Date(order.date).toLocaleDateString()}</p>
+              <p className="text-text-secondary">Placed on {new Date(order.created_at).toLocaleDateString()}</p>
             </div>
           </div>
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => window.print()}>
             <Printer className="mr-2 h-4 w-4" /> Print Invoice
           </Button>
         </div>
@@ -90,14 +108,25 @@ export default function OrderDetailsPage() {
                 </h2>
               </div>
               <div className="divide-y divide-border-light">
-                {order.items.map((item) => (
-                  <div key={item.id} className="p-6 flex gap-4">
-                    <div className="w-20 h-20 bg-background rounded-md overflow-hidden flex-shrink-0">
-                      <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+                {orderItems && orderItems.map((item: any, index: number) => (
+                  <div key={index} className="p-6 flex gap-4">
+                    <div className="relative w-20 h-20 bg-muted rounded-md overflow-hidden flex-shrink-0">
+                      {item.image ? (
+                        <OptimizedImage
+                          src={item.image}
+                          alt={item.title}
+                          fill
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-muted text-text-muted">
+                          <Package className="h-8 w-8" />
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1">
                       <h3 className="font-medium">{item.title}</h3>
-                      <p className="text-sm text-text-secondary">{item.variant}</p>
+                      {item.variant && <p className="text-sm text-text-secondary">{item.variant}</p>}
                       <div className="mt-2 flex justify-between items-center">
                         <span className="text-sm text-text-secondary">Qty: {item.quantity}</span>
                         <span className="font-bold">{formatCurrency(item.price * item.quantity)}</span>
@@ -118,8 +147,14 @@ export default function OrderDetailsPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-text-secondary">Shipping</span>
-                  <span>{formatCurrency(order.shipping)}</span>
+                  <span>{formatCurrency(order.shipping_fee)}</span>
                 </div>
+                {order.discount_amount > 0 && (
+                  <div className="flex justify-between text-success">
+                    <span>Discount</span>
+                    <span>-{formatCurrency(order.discount_amount)}</span>
+                  </div>
+                )}
                 <div className="border-t border-border-light pt-4 flex justify-between font-bold text-lg">
                   <span>Total</span>
                   <span>{formatCurrency(order.total)}</span>
@@ -134,21 +169,44 @@ export default function OrderDetailsPage() {
             <div className="bg-surface rounded-xl shadow-card border border-border-light p-6 space-y-4">
               <h2 className="font-bold">Customer</h2>
               <div className="space-y-1 text-sm">
-                <p className="font-medium">{order.customer.name}</p>
-                <p className="text-text-secondary">{order.customer.email}</p>
-                <p className="text-text-secondary">{order.customer.phone}</p>
+                <p className="font-medium">{order.user?.full_name || shippingAddress?.firstName + ' ' + shippingAddress?.lastName || 'Guest'}</p>
+                <p className="text-text-secondary">{order.user?.email || order.guest_email}</p>
+                <p className="text-text-secondary">{order.user?.phone || shippingAddress?.phone}</p>
               </div>
             </div>
 
             {/* Shipping Address */}
+            {shippingAddress && (
+              <div className="bg-surface rounded-xl shadow-card border border-border-light p-6 space-y-4">
+                <h2 className="font-bold flex items-center gap-2">
+                  <MapPin className="h-4 w-4" /> Shipping Address
+                </h2>
+                <div className="space-y-1 text-sm text-text-secondary">
+                  <p>{shippingAddress.address}</p>
+                  <p>{shippingAddress.city}, {shippingAddress.state}</p>
+                  <p>{shippingAddress.zipCode}</p>
+                  <p>{shippingAddress.country}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Payment Info */}
             <div className="bg-surface rounded-xl shadow-card border border-border-light p-6 space-y-4">
-              <h2 className="font-bold flex items-center gap-2">
-                <MapPin className="h-4 w-4" /> Shipping Address
-              </h2>
-              <div className="space-y-1 text-sm text-text-secondary">
-                <p>{order.shippingAddress.line1}</p>
-                <p>{order.shippingAddress.city}, {order.shippingAddress.state}</p>
-                <p>{order.shippingAddress.zip}</p>
+              <h2 className="font-bold">Payment Information</h2>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Method</span>
+                  <span className="font-medium capitalize">{order.payment_method?.replace('_', ' ') || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Status</span>
+                  <span className={`font-medium capitalize ${
+                    order.payment_status === 'paid' ? 'text-success' :
+                    order.payment_status === 'failed' ? 'text-error' : 'text-warning-foreground'
+                  }`}>
+                    {order.payment_status}
+                  </span>
+                </div>
               </div>
             </div>
           </div>

@@ -13,19 +13,23 @@ export default function AccountPage() {
 
   useEffect(() => {
     const fetchOrders = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
 
-      // In a real app, fetch from DB
-      // const { data } = await supabase.from('orders').select('*').eq('user_id', user.id);
-      // setOrders(data || []);
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
 
-      // Mock data for now
-      setOrders([
-        { id: "ORD-001", date: "2024-03-15", status: "Processing", total: 45000, items: 3 },
-        { id: "ORD-002", date: "2024-02-28", status: "Delivered", total: 12500, items: 1 },
-      ]);
-      setLoading(false);
+        if (error) throw error;
+        setOrders(data || []);
+      } catch (err) {
+        console.error("Error fetching orders:", err);
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchOrders();
@@ -59,22 +63,23 @@ export default function AccountPage() {
                 <div key={order.id} className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-muted/50 transition-colors">
                   <div>
                     <div className="flex items-center gap-3 mb-1">
-                      <span className="font-bold text-lg">{order.id}</span>
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        order.status === 'Delivered' ? 'bg-success/10 text-success' :
-                        order.status === 'Processing' ? 'bg-warning/10 text-warning-foreground' :
-                        'bg-muted text-text-muted'
+                      <span className="font-bold text-lg">{order.order_number}</span>
+                        order.order_status === 'delivered' ? 'bg-success/10 text-success border-success/20' :
+                        order.order_status === 'processing' ? 'bg-warning/10 text-warning-foreground border-warning/20' :
+                        order.order_status === 'cancelled' || order.order_status === 'failed' ? 'bg-error/10 text-error border-error/20' :
+                        order.order_status === 'returned' ? 'bg-secondary/10 text-secondary-foreground border-secondary/20' :
+                        'bg-muted text-text-muted border-border-light'
                       }`}>
-                        {order.status}
+                        {order.order_status.charAt(0).toUpperCase() + order.order_status.slice(1)}
                       </span>
                     </div>
                     <p className="text-sm text-text-secondary">
-                      Placed on {new Date(order.date).toLocaleDateString()} • {order.items} items
+                      Placed on {new Date(order.created_at).toLocaleDateString()} • {order.items?.length || 0} items
                     </p>
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="font-bold text-lg">{formatCurrency(order.total)}</span>
-                    <Link href={`/account/orders/${order.id}`} className="btn-outline py-2 px-4 text-sm">
+                    <Link href={`/account/orders/${order.id}`} className="btn-outline py-2 px-4 text-sm rounded-md hover:bg-primary hover:text-white transition-colors">
                       View Details
                     </Link>
                   </div>
