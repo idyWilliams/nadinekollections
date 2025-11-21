@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingBag, Search, User as UserIcon, Menu, LogOut, Heart } from "lucide-react";
+import { ShoppingBag, Search, User as UserIcon, Menu, LogOut, Heart, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState, useEffect } from "react";
@@ -66,6 +66,17 @@ export function Header() {
           <Link href="/shop/women" className="text-sm font-medium hover:text-primary transition-colors">
             Women
           </Link>
+              <Link href="/shop" className="text-sm font-medium hover:text-primary transition-colors">
+                Shop
+              </Link>
+              <Link href="/about" className="text-sm font-medium hover:text-primary transition-colors">
+                About
+              </Link>
+              <div className="h-4 w-px bg-border-light mx-2" />
+              <Link href="/studio" className="group flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-primary-foreground text-sm font-medium shadow-glow hover:shadow-lg hover:scale-105 transition-all duration-300">
+                <Sparkles className="h-3.5 w-3.5 transition-transform group-hover:rotate-12" />
+                <span>Virtual Studio</span>
+              </Link>
           <Link href="/shop/men" className="text-sm font-medium hover:text-primary transition-colors">
             Men
           </Link>
@@ -124,7 +135,7 @@ export function Header() {
           <Button variant="primary" size="icon" className="relative" onClick={toggleCart}>
             <ShoppingBag className="h-5 w-5" />
             {itemCount > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-secondary text-[10px] font-bold text-secondary-foreground">
+              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-gold text-[10px] font-bold text-white shadow-sm">
                 {itemCount}
               </span>
             )}

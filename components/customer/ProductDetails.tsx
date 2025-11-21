@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingBag, Heart, Minus, Plus, Share2 } from "lucide-react";
+import { ShoppingBag, Heart, Minus, Plus, Share2, Sparkles } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { useCartStore } from "@/lib/store/cart";
 import { toast } from "sonner";
@@ -142,6 +142,17 @@ export function ProductDetails({ product }: ProductDetailsProps) {
             </Button>
             <Button size="lg" variant="ghost" className="h-14 w-14 p-0">
               <Share2 className="h-5 w-5" />
+            </Button>
+          </div>
+
+          <div className="pt-4">
+            <Button
+              variant="secondary"
+              className="w-full h-12 gap-2 text-primary font-semibold shadow-sm border border-primary/20 hover:bg-primary/5"
+              onClick={() => window.location.href = `/studio?product_id=${product.id}`}
+            >
+              <Sparkles className="h-5 w-5" />
+              Try On with Mannequin
             </Button>
           </div>
         </div>
