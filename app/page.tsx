@@ -81,9 +81,9 @@ export default function Home() {
             <h2 className="text-3xl font-bold mb-8 md:mb-12 text-center">Shop by Category</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {[
-                { name: "Kids", image: "/banners/cat_kids.png", link: "/shop/kids" },
-                { name: "Women", image: "/banners/cat_women.png", link: "/shop/women" },
-                { name: "Men", image: "/banners/cat_men_v2.png", link: "/shop/men" },
+                { name: "Kids", image: "/kidsCategory.jpeg", link: "/shop/kids" },
+                { name: "Women", image: "/banners/womenCategory.png", link: "/shop/women" },
+                { name: "Men", image: "/banners/menCategory.png", link: "/shop/men" },
                 { name: "Accessories", image: "/banners/cat_accessories.png", link: "/shop/accessories" },
               ].map((cat) => (
                 <Link key={cat.name} href={cat.link} className="group relative h-[300px] md:h-[400px] overflow-hidden rounded-2xl">
