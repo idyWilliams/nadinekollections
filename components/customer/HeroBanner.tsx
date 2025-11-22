@@ -70,7 +70,7 @@ export function HeroBanner() {
   const prev = () => setCurrent((prev) => (prev - 1 + banners.length) % banners.length);
 
   return (
-    <div className="relative h-[600px] w-full overflow-hidden md:h-[800px]">
+    <div className="relative h-[500px] w-full overflow-hidden md:h-[800px]">
       <AnimatePresence mode="wait">
         <motion.div
           key={current}

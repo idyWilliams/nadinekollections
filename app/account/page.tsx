@@ -64,6 +64,7 @@ export default function AccountPage() {
                   <div>
                     <div className="flex items-center gap-3 mb-1">
                       <span className="font-bold text-lg">{order.order_number}</span>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
                         order.order_status === 'delivered' ? 'bg-success/10 text-success border-success/20' :
                         order.order_status === 'processing' ? 'bg-warning/10 text-warning-foreground border-warning/20' :
                         order.order_status === 'cancelled' || order.order_status === 'failed' ? 'bg-error/10 text-error border-error/20' :

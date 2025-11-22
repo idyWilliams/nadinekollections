@@ -226,7 +226,7 @@ export default function CheckoutPage() {
                 <div key={`${item.id}-${item.variantId}`} className="flex gap-4">
                   <div className="relative w-16 h-16 rounded-md overflow-hidden bg-background">
                     <img src={item.image} alt={item.title} className="object-cover w-full h-full" />
-                    <span className="absolute top-0 right-0 bg-secondary text-xs font-bold px-1.5 py-0.5 rounded-bl-md">
+                    <span className="absolute top-0 right-0 bg-gold text-white text-xs font-bold px-1.5 py-0.5 rounded-bl-md shadow-sm">
                       {item.quantity}
                     </span>
                   </div>

@@ -47,8 +47,9 @@ export function Header() {
       <div className="container mx-auto flex h-20 items-center justify-between px-4 md:px-6">
         {/* Mobile Menu Button */}
         <button
-          className="md:hidden"
+          className="md:hidden p-2 -ml-2 hover:bg-muted/20 rounded-full transition-colors"
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          aria-label="Open Menu"
         >
           <Menu className="h-6 w-6 text-text-primary" />
         </button>

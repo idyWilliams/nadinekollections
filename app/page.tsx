@@ -51,10 +51,10 @@ export default function Home() {
     <div className="min-h-screen bg-background">
       <HeroBanner />
 
-      <main className="container mx-auto px-4 md:px-6 py-12 space-y-24">
+      <main className="container mx-auto px-4 md:px-6 py-12 space-y-12 md:space-y-24">
         {/* Featured Collection */}
-        <section className="py-20 px-4 md:px-6 container mx-auto">
-          <div className="flex items-end justify-between mb-12">
+        <section className="py-12 md:py-20 px-4 md:px-6 container mx-auto">
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 md:mb-12 gap-4">
             <div>
               <h2 className="text-3xl font-bold mb-4">Trending Now</h2>
               <p className="text-text-secondary max-w-xl">
@@ -62,13 +62,13 @@ export default function Home() {
               </p>
             </div>
             <Link href="/shop/all">
-              <Button variant="ghost" className="gap-2">
+              <Button variant="ghost" className="gap-2 pl-0 md:pl-4">
                 View All <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
             {featuredProducts.map((product) => (
               <ProductCard key={product.id} {...product} />
             ))}
@@ -76,9 +76,9 @@ export default function Home() {
         </section>
 
         {/* Categories Grid */}
-        <section className="py-20 bg-surface">
+        <section className="py-12 md:py-20 bg-surface">
           <div className="container mx-auto px-4 md:px-6">
-            <h2 className="text-3xl font-bold mb-12 text-center">Shop by Category</h2>
+            <h2 className="text-3xl font-bold mb-8 md:mb-12 text-center">Shop by Category</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {[
                 { name: "Kids", image: "/banners/cat_kids.png", link: "/shop/kids" },
@@ -86,7 +86,7 @@ export default function Home() {
                 { name: "Men", image: "/banners/cat_men_v2.png", link: "/shop/men" },
                 { name: "Accessories", image: "/banners/cat_accessories.png", link: "/shop/accessories" },
               ].map((cat) => (
-                <Link key={cat.name} href={cat.link} className="group relative h-[400px] overflow-hidden rounded-2xl">
+                <Link key={cat.name} href={cat.link} className="group relative h-[300px] md:h-[400px] overflow-hidden rounded-2xl">
                   <div
                     className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110"
                     style={{ backgroundImage: `url(${cat.image})` }}
@@ -105,19 +105,19 @@ export default function Home() {
         </section>
 
         {/* Newsletter Section */}
-        <section className="py-20 container mx-auto px-4 md:px-6 text-center">
-          <div className="max-w-2xl mx-auto bg-primary/5 rounded-3xl p-12">
+        <section className="py-12 md:py-20 container mx-auto px-4 md:px-6 text-center">
+          <div className="max-w-2xl mx-auto bg-primary/5 rounded-3xl p-8 md:p-12">
             <h2 className="text-3xl font-bold mb-4">Join the Family</h2>
             <p className="text-text-secondary mb-8">
               Subscribe to our newsletter and get 10% off your first order plus exclusive access to new arrivals.
             </p>
-            <form className="flex gap-4 max-w-md mx-auto">
+            <form className="flex flex-col sm:flex-row gap-4 max-w-md mx-auto">
               <input
                 type="email"
                 placeholder="Enter your email"
                 className="flex-1 rounded-lg border border-border-light px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
               />
-              <Button>Subscribe</Button>
+              <Button className="w-full sm:w-auto">Subscribe</Button>
             </form>
           </div>
         </section>

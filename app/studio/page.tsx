@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { MannequinCustomizer } from "@/components/studio/MannequinCustomizer";
 import { ProductSelector } from "@/components/studio/ProductSelector";
 import { TryOnCanvas } from "@/components/studio/TryOnCanvas";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Shirt, User, Sparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -17,6 +18,7 @@ export default function StudioPage() {
     age: "young-adult"
   });
 
+  const [selectedEngine, setSelectedEngine] = useState<'gemini' | 'nano'>('gemini');
   const [selectedProducts, setSelectedProducts] = useState<any[]>([]);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -35,6 +37,7 @@ export default function StudioPage() {
         body: JSON.stringify({
           mannequinSettings,
           products: selectedProducts,
+          engine: selectedEngine,
           guestId: "guest-123" // In real app, generate/retrieve from cookie
         }),
       });
@@ -55,9 +58,24 @@ export default function StudioPage() {
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
       {/* Left Panel: Controls (Mobile: Bottom Sheet or Tabs) */}
       <div className="w-full md:w-1/3 lg:w-1/4 border-r border-border-light bg-surface flex flex-col h-[50dvh] md:h-screen overflow-hidden order-2 md:order-1 z-10 shadow-xl">
-        <div className="p-5 border-b border-border-light bg-surface/95 backdrop-blur-sm z-10">
-          <h1 className="text-2xl font-heading font-bold text-primary tracking-tight">Virtual Studio</h1>
-          <p className="text-xs text-text-secondary uppercase tracking-wider font-medium mt-1">AI Style Assistant</p>
+        <div className="p-5 border-b border-border-light bg-surface/95 backdrop-blur-sm z-10 space-y-4">
+          <div>
+            <h1 className="text-2xl font-heading font-bold text-primary tracking-tight">Virtual Studio</h1>
+            <p className="text-xs text-text-secondary uppercase tracking-wider font-medium mt-1">AI Style Assistant</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-text-secondary uppercase tracking-wider">AI Engine</label>
+            <Select value={selectedEngine} onValueChange={(val: 'gemini' | 'nano') => setSelectedEngine(val)}>
+              <SelectTrigger className="w-full bg-background border-border-light">
+                <SelectValue placeholder="Select Engine" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="gemini">Gemini 3 Pro</SelectItem>
+                <SelectItem value="nano">Nano Banana 2</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <Tabs defaultValue="mannequin" className="flex-1 flex flex-col min-h-0">

@@ -1,0 +1,200 @@
+
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Profiles Table (Public profile info for users)
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  full_name TEXT,
+  email TEXT,
+  role TEXT DEFAULT 'customer' CHECK (role IN ('customer', 'admin')),
+  avatar_url TEXT,
+  phone TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Products Table
+CREATE TABLE IF NOT EXISTS public.products (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  title TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  description TEXT,
+  price NUMERIC(10, 2) NOT NULL,
+  sale_price NUMERIC(10, 2),
+  cost_price NUMERIC(10, 2), -- For admin analytics
+  category TEXT[] DEFAULT '{}', -- Array of categories
+  primary_image TEXT,
+  images TEXT[] DEFAULT '{}',
+  is_featured BOOLEAN DEFAULT false,
+  is_new BOOLEAN DEFAULT false,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Product Variants (for sizes, colors, inventory)
+CREATE TABLE IF NOT EXISTS public.product_variants (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  product_id UUID REFERENCES public.products(id) ON DELETE CASCADE,
+  name TEXT NOT NULL, -- e.g., "Small - Red"
+  sku TEXT UNIQUE,
+  attributes JSONB DEFAULT '{}', -- e.g., {"size": "S", "color": "Red"}
+  inventory_count INTEGER DEFAULT 0,
+  price_adjustment NUMERIC(10, 2) DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Orders Table
+CREATE TABLE IF NOT EXISTS public.orders (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  guest_email TEXT, -- For guest checkout
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded')),
+  total_amount NUMERIC(10, 2) NOT NULL,
+  subtotal_amount NUMERIC(10, 2) NOT NULL,
+  shipping_cost NUMERIC(10, 2) DEFAULT 0,
+  tax_amount NUMERIC(10, 2) DEFAULT 0,
+  discount_amount NUMERIC(10, 2) DEFAULT 0,
+  shipping_address JSONB,
+  billing_address JSONB,
+  payment_status TEXT DEFAULT 'unpaid' CHECK (payment_status IN ('unpaid', 'paid', 'failed', 'refunded')),
+  payment_reference TEXT, -- Paystack reference
+  payment_method TEXT,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Order Items Table
+CREATE TABLE IF NOT EXISTS public.order_items (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  order_id UUID REFERENCES public.orders(id) ON DELETE CASCADE,
+  product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
+  variant_id UUID REFERENCES public.product_variants(id) ON DELETE SET NULL,
+  title TEXT NOT NULL, -- Snapshot of product title at time of order
+  quantity INTEGER NOT NULL,
+  unit_price NUMERIC(10, 2) NOT NULL,
+  total_price NUMERIC(10, 2) NOT NULL,
+  metadata JSONB DEFAULT '{}'
+);
+
+-- Shipping Zones
+CREATE TABLE IF NOT EXISTS public.shipping_zones (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  name TEXT NOT NULL,
+  countries TEXT[] DEFAULT '{}',
+  regions TEXT[] DEFAULT '{}',
+  shipping_method TEXT DEFAULT 'flat_rate',
+  flat_rate NUMERIC(10, 2) DEFAULT 0,
+  estimated_delivery_days INTEGER,
+  is_active BOOLEAN DEFAULT true
+);
+
+-- Promotions / Coupons
+CREATE TABLE IF NOT EXISTS public.promotions (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  name TEXT NOT NULL,
+  code TEXT UNIQUE NOT NULL,
+  type TEXT CHECK (type IN ('percentage', 'fixed_amount', 'free_shipping')),
+  value NUMERIC(10, 2) NOT NULL,
+  min_order_amount NUMERIC(10, 2) DEFAULT 0,
+  start_date TIMESTAMPTZ DEFAULT NOW(),
+  end_date TIMESTAMPTZ,
+  usage_limit INTEGER,
+  usage_count INTEGER DEFAULT 0,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Banner Ads
+CREATE TABLE IF NOT EXISTS public.banner_ads (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  title TEXT,
+  subtitle TEXT,
+  image_url TEXT NOT NULL,
+  cta_text TEXT,
+  cta_link TEXT,
+  display_order INTEGER DEFAULT 0,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Try On Sessions (for Analytics/History)
+CREATE TABLE IF NOT EXISTS public.try_on_sessions (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  guest_id TEXT,
+  mannequin_settings JSONB,
+  products JSONB,
+  generated_image_url TEXT,
+  prompt_used TEXT,
+  engine_used TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable Row Level Security (RLS)
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.product_variants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.shipping_zones ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.promotions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.banner_ads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.try_on_sessions ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies
+
+-- Profiles: Users can read/update their own. Admins can read all.
+CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Public read access to profiles (optional, usually restricted)" ON public.profiles FOR SELECT USING (true); -- Adjusted for simplicity in this context, usually restricted.
+
+-- Products: Public read. Admin write.
+CREATE POLICY "Public can view active products" ON public.products FOR SELECT USING (is_active = true);
+CREATE POLICY "Admins can manage products" ON public.products FOR ALL USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
+-- Variants: Public read. Admin write.
+CREATE POLICY "Public can view variants" ON public.product_variants FOR SELECT USING (true);
+CREATE POLICY "Admins can manage variants" ON public.product_variants FOR ALL USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
+-- Orders: Users view own. Admins view all.
+CREATE POLICY "Users can view own orders" ON public.orders FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can create orders" ON public.orders FOR INSERT WITH CHECK (auth.uid() = user_id OR user_id IS NULL); -- Allow guest orders (user_id null)
+CREATE POLICY "Admins can view all orders" ON public.orders FOR SELECT USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
+-- Try On Sessions: Users view own. Guests view by guest_id (handled in app logic, RLS tricky for guests without auth).
+-- For simplicity, we allow insert for authenticated and anon (guests).
+CREATE POLICY "Enable insert for all users" ON public.try_on_sessions FOR INSERT WITH CHECK (true);
+CREATE POLICY "Users view own sessions" ON public.try_on_sessions FOR SELECT USING (auth.uid() = user_id);
+
+-- Functions & Triggers
+
+-- Handle New User Signup -> Create Profile
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, full_name, email, role, avatar_url)
+  VALUES (
+    new.id,
+    new.raw_user_meta_data->>'full_name',
+    new.email,
+    COALESCE(new.raw_user_meta_data->>'role', 'customer'),
+    new.raw_user_meta_data->>'avatar_url'
+  );
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
