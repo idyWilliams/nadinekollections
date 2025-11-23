@@ -21,7 +21,7 @@ interface ProductDetailsProps {
     images?: string[];
     category: string;
     stock: number;
-    variants?: any[]; // flexible for now
+    variants?: unknown[]; // flexible for now
     features?: string[];
   };
 }

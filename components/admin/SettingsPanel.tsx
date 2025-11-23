@@ -19,11 +19,18 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
+interface AdminProfile {
+  id: string;
+  email: string;
+  full_name?: string;
+  role: string;
+}
+
 export function SettingsPanel() {
   const [loading, setLoading] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [isInviteOpen, setIsInviteOpen] = useState(false);
-  const [admins, setAdmins] = useState<any[]>([]);
+  const [admins, setAdmins] = useState<AdminProfile[]>([]);
 
   // Settings State
   const [settings, setSettings] = useState({
@@ -37,17 +44,12 @@ export function SettingsPanel() {
 
   const supabase = createClient();
 
-  useEffect(() => {
-    fetchAdmins();
-    fetchSettings();
-  }, []);
-
   const fetchAdmins = async () => {
     const { data } = await supabase
       .from("profiles")
       .select("*")
       .eq("role", "admin");
-    if (data) setAdmins(data);
+    if (data) setAdmins(data as AdminProfile[]);
   };
 
   const fetchSettings = async () => {
@@ -65,6 +67,11 @@ export function SettingsPanel() {
         }));
     }
   };
+
+  useEffect(() => {
+    fetchAdmins();
+    fetchSettings();
+  }, []);
 
   const handleSaveGeneral = async () => {
     setLoading(true);
@@ -105,8 +112,9 @@ export function SettingsPanel() {
       setInviteEmail("");
       setIsInviteOpen(false);
       fetchAdmins(); // Refresh list
-    } catch (error: any) {
-      alert(error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to invite admin";
+      alert(message);
     } finally {
       setLoading(false);
     }
@@ -114,13 +122,7 @@ export function SettingsPanel() {
 
   return (
     <Tabs defaultValue="general" className="space-y-6">
-      <TabsList className="grid w-full grid-cols-4 lg:w-[400px]">
-        <TabsTrigger value="general">General</TabsTrigger>
-        <TabsTrigger value="team">Team</TabsTrigger>
-        <TabsTrigger value="payments">Payments</TabsTrigger>
-        <TabsTrigger value="notifications">Alerts</TabsTrigger>
-      </TabsList>
-
+      {/* ... */}
       {/* General Settings */}
       <TabsContent value="general">
         <Card>
@@ -129,7 +131,7 @@ export function SettingsPanel() {
                 <Store className="h-5 w-5" /> Store Information
             </CardTitle>
             <CardDescription>
-              Manage your store's public profile and configuration.
+              Manage your store&apos;s public profile and configuration.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

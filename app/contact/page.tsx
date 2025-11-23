@@ -12,7 +12,7 @@ export default function ContactPage() {
           <div>
             <h1 className="text-4xl font-bold mb-4">Get in Touch</h1>
             <p className="text-text-secondary text-lg">
-              We'd love to hear from you. Our team is always here to chat.
+              We&apos;d love to hear from you. Our team is always here to chat.
             </p>
           </div>
 

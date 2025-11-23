@@ -74,7 +74,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ message: "Webhook received" }, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Webhook error:", error);
     return NextResponse.json(
       { message: "Internal Server Error" },

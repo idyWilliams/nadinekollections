@@ -10,6 +10,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Shirt, User, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
+interface Product {
+  id: string;
+  title: string;
+  price: number;
+  primary_image: string;
+  category: string[];
+}
+
 export default function StudioPage() {
   const [mannequinSettings, setMannequinSettings] = useState({
     gender: "female",
@@ -19,7 +27,7 @@ export default function StudioPage() {
   });
 
   const [selectedEngine, setSelectedEngine] = useState<'gemini' | 'nano'>('gemini');
-  const [selectedProducts, setSelectedProducts] = useState<any[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -47,8 +55,9 @@ export default function StudioPage() {
 
       setGeneratedImage(data.imageUrl);
       toast.success("Look generated successfully!");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to generate look");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to generate look";
+      toast.error(message);
     } finally {
       setIsGenerating(false);
     }

@@ -37,10 +37,11 @@ export async function POST(request: Request) {
       .eq("id", orderId);
 
     return NextResponse.json(paystackResponse.data);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Paystack initialization error:", error);
+    const message = error instanceof Error ? error.message : "Internal Server Error";
     return NextResponse.json(
-      { message: error.message || "Internal Server Error" },
+      { message },
       { status: 500 }
     );
   }

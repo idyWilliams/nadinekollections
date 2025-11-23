@@ -11,9 +11,21 @@ import { motion, AnimatePresence } from "framer-motion";
 import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
 
+interface Order {
+  id: string;
+  order_number: string;
+  order_status: string;
+  updated_at: string;
+  created_at: string;
+  total: number;
+  tracking_number?: string;
+  tracking_carrier?: string;
+  user_id?: string;
+}
+
 export default function TrackOrderPage() {
   const [orderId, setOrderId] = useState("");
-  const [order, setOrder] = useState<any>(null);
+  const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
@@ -41,7 +53,7 @@ export default function TrackOrderPage() {
       if (!data) throw new Error("Order not found");
 
       setOrder(data);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Error fetching order:", err);
       setError("We couldn't find an order with that ID. Please check and try again.");
     } finally {

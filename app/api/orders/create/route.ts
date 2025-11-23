@@ -105,10 +105,11 @@ export async function POST(request: Request) {
       message: "Order created successfully"
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Order API error:", error);
+    const message = error instanceof Error ? error.message : "Internal Server Error";
     return NextResponse.json(
-      { message: error.message || "Internal Server Error" },
+      { message },
       { status: 500 }
     );
   }

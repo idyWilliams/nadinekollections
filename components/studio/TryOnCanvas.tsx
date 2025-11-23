@@ -5,10 +5,18 @@ import { OptimizedImage } from "@/components/ui/optimized-image";
 import { Download, Share2, Sparkles, RotateCw } from "lucide-react";
 import { toast } from "sonner";
 
+interface Product {
+  id: string;
+  title: string;
+  price: number;
+  primary_image: string;
+  category: string[];
+}
+
 interface Props {
   image: string | null;
   isGenerating: boolean;
-  products: any[];
+  products: Product[];
 }
 
 export function TryOnCanvas({ image, isGenerating, products }: Props) {

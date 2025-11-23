@@ -6,8 +6,17 @@ import { Package, User } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+interface Order {
+  id: string;
+  order_number: string;
+  created_at: string;
+  order_status: string;
+  total: number;
+  items?: unknown[];
+}
+
 export default function AccountPage() {
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
@@ -89,7 +98,7 @@ export default function AccountPage() {
             </div>
           ) : (
             <div className="p-12 text-center">
-              <p className="text-text-secondary mb-4">You haven't placed any orders yet.</p>
+              <p className="text-text-secondary mb-4">You haven&apos;t placed any orders yet.</p>
               <Link href="/" className="btn-primary">Start Shopping</Link>
             </div>
           )}

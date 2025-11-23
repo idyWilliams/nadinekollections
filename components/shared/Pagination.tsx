@@ -27,22 +27,17 @@ export function Pagination({ currentPage, totalPages, baseUrl }: PaginationProps
   return (
     <div className="flex items-center justify-center gap-2 mt-12">
       {/* Previous Button */}
-      <Button
-        variant="outline"
-        size="icon"
-        disabled={currentPage <= 1}
-        asChild={currentPage > 1}
-      >
-        {currentPage > 1 ? (
-          <Link href={createPageUrl(currentPage - 1)}>
+      {currentPage > 1 ? (
+        <Link href={createPageUrl(currentPage - 1)}>
+          <Button variant="outline" size="icon">
             <ChevronLeft className="h-4 w-4" />
-          </Link>
-        ) : (
-          <span>
-            <ChevronLeft className="h-4 w-4" />
-          </span>
-        )}
-      </Button>
+          </Button>
+        </Link>
+      ) : (
+        <Button variant="outline" size="icon" disabled>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+      )}
 
       {/* Page Numbers */}
       <div className="flex items-center gap-1">
@@ -54,15 +49,15 @@ export function Pagination({ currentPage, totalPages, baseUrl }: PaginationProps
             (page >= currentPage - 1 && page <= currentPage + 1)
           ) {
             return (
-              <Button
-                key={page}
-                variant={currentPage === page ? "primary" : "ghost"}
-                size="sm"
-                className={`w-9 h-9 ${currentPage === page ? "pointer-events-none" : ""}`}
-                asChild
-              >
-                <Link href={createPageUrl(page)}>{page}</Link>
-              </Button>
+              <Link key={page} href={createPageUrl(page)}>
+                <Button
+                  variant={currentPage === page ? "primary" : "ghost"}
+                  size="sm"
+                  className={`w-9 h-9 ${currentPage === page ? "pointer-events-none" : ""}`}
+                >
+                  {page}
+                </Button>
+              </Link>
             );
           }
 
@@ -83,22 +78,17 @@ export function Pagination({ currentPage, totalPages, baseUrl }: PaginationProps
       </div>
 
       {/* Next Button */}
-      <Button
-        variant="outline"
-        size="icon"
-        disabled={currentPage >= totalPages}
-        asChild={currentPage < totalPages}
-      >
-        {currentPage < totalPages ? (
-          <Link href={createPageUrl(currentPage + 1)}>
+      {currentPage < totalPages ? (
+        <Link href={createPageUrl(currentPage + 1)}>
+          <Button variant="outline" size="icon">
             <ChevronRight className="h-4 w-4" />
-          </Link>
-        ) : (
-          <span>
-            <ChevronRight className="h-4 w-4" />
-          </span>
-        )}
-      </Button>
+          </Button>
+        </Link>
+      ) : (
+        <Button variant="outline" size="icon" disabled>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      )}
     </div>
   );
 }

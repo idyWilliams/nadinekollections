@@ -9,10 +9,50 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { OptimizedImage } from "@/components/ui/optimized-image";
 
+interface OrderItem {
+  title: string;
+  quantity: number;
+  price: number;
+  image?: string;
+  variant?: string;
+}
+
+interface ShippingAddress {
+  firstName: string;
+  lastName: string;
+  address: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
+  phone: string;
+}
+
+interface Order {
+  id: string;
+  order_number: string;
+  created_at: string;
+  order_status: string;
+  total: number;
+  subtotal: number;
+  shipping_fee: number;
+  discount_amount: number;
+  items: string | OrderItem[];
+  shipping_address: string | ShippingAddress;
+  user?: {
+    full_name: string;
+    email: string;
+    phone: string;
+  };
+  guest_email?: string;
+  payment_method?: string;
+  payment_status?: string;
+}
+
 export default function OrderDetailsPage() {
   const params = useParams();
   const { id } = params;
-  const [order, setOrder] = useState<any>(null);
+  const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
@@ -54,7 +94,7 @@ export default function OrderDetailsPage() {
     return (
       <div className="min-h-screen bg-background py-12 px-4 md:px-8 flex flex-col items-center justify-center gap-4">
         <h1 className="text-2xl font-bold">Order Not Found</h1>
-        <p className="text-text-secondary">We couldn't find the order you're looking for.</p>
+        <p className="text-text-secondary">We couldn&apos;t find the order you&apos;re looking for.</p>
         <Link href="/account">
           <Button>Back to Orders</Button>
         </Link>
@@ -63,8 +103,8 @@ export default function OrderDetailsPage() {
   }
 
   // Parse items if they are stored as JSON string, otherwise use as is
-  const orderItems = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
-  const shippingAddress = typeof order.shipping_address === 'string' ? JSON.parse(order.shipping_address) : order.shipping_address;
+  const orderItems: OrderItem[] = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+  const shippingAddress: ShippingAddress = typeof order.shipping_address === 'string' ? JSON.parse(order.shipping_address) : order.shipping_address;
 
   return (
     <div className="min-h-screen bg-background py-12 px-4 md:px-8">
@@ -109,7 +149,7 @@ export default function OrderDetailsPage() {
                 </h2>
               </div>
               <div className="divide-y divide-border-light">
-                {orderItems && orderItems.map((item: any, index: number) => (
+                {orderItems && orderItems.map((item: OrderItem, index: number) => (
                   <div key={index} className="p-6 flex gap-4">
                     <div className="relative w-20 h-20 bg-muted rounded-md overflow-hidden flex-shrink-0">
                       {item.image ? (

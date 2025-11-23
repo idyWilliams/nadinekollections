@@ -46,7 +46,7 @@ export default function FAQsPage() {
             <AccordionItem value="item-6">
               <AccordionTrigger>How can I track my order?</AccordionTrigger>
               <AccordionContent>
-                Once your order is shipped, you will receive an email with a tracking number. You can use this number on our "Track Order" page to see the status of your delivery.
+                Once your order is shipped, you will receive an email with a tracking number. You can use this number on our &quot;Track Order&quot; page to see the status of your delivery.
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="item-7">
@@ -58,7 +58,7 @@ export default function FAQsPage() {
             <AccordionItem value="item-8">
               <AccordionTrigger>How do I contact customer support?</AccordionTrigger>
               <AccordionContent>
-                You can reach our customer support team via email at support@nadinekollections.com or through our "Contact Us" page. We are available Monday to Friday, 9 AM to 5 PM.
+                You can reach our customer support team via email at support@nadinekollections.com or through our &quot;Contact Us&quot; page. We are available Monday to Friday, 9 AM to 5 PM.
               </AccordionContent>
             </AccordionItem>
           </Accordion>

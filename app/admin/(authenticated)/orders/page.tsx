@@ -12,14 +12,20 @@ export default async function AdminOrdersPage() {
     .limit(50);
 
   // Format orders for the table
-  const formattedOrders = orders?.map(order => ({
-    id: order.id,
-    customer: Array.isArray(order.profiles) ? order.profiles[0]?.full_name : (order.profiles as any)?.full_name || "Guest User",
-    total: order.total_amount || 0,
-    status: order.status || "Pending",
-    date: new Date(order.created_at).toLocaleDateString(),
-    items: 1 // Placeholder as we're not fetching items count yet
-  })) || [];
+  const formattedOrders = orders?.map(order => {
+    const profile = Array.isArray(order.profiles) ? order.profiles[0] : order.profiles;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fullName = (profile as any)?.full_name;
+
+    return {
+      id: order.id,
+      customer: fullName || "Guest User",
+      total: order.total_amount || 0,
+      status: order.status || "Pending",
+      date: new Date(order.created_at).toLocaleDateString(),
+      items: 1 // Placeholder as we're not fetching items count yet
+    };
+  }) || [];
 
   // If no orders, use mock data for demonstration
   const displayOrders = formattedOrders.length > 0 ? formattedOrders : [

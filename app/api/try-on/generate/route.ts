@@ -6,6 +6,11 @@ import { checkRateLimit, logTryOnSession } from "@/lib/analytics";
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
+interface Product {
+  title: string;
+  color?: string;
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
@@ -35,7 +40,7 @@ export async function POST(request: Request) {
     let prompt = "";
 
     const generateWithGemini = async () => {
-      const productDescriptions = products.map((p: any) => `${p.title} (${p.color || 'Standard'})`).join(", ");
+      const productDescriptions = products.map((p: Product) => `${p.title} (${p.color || 'Standard'})`).join(", ");
       prompt = `Generate a highly detailed, photorealistic fashion description for an image generation model.
       Subject: A ${mannequinSettings.age} ${mannequinSettings.gender} model with ${mannequinSettings.skinTone} complexion and ${mannequinSettings.size} body type.
       Wearing: ${productDescriptions}.
@@ -118,7 +123,7 @@ export async function POST(request: Request) {
       engineUsed: usedEngine
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Generation error:", error);
     return NextResponse.json(
       { error: "Failed to generate image. Please try again." },
