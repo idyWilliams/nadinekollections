@@ -71,7 +71,9 @@ export function CustomersTable({ customers }: Props) {
   };
 
   const handleEmail = (email: string) => {
-    window.location.href = `mailto:${email}`;
+    if (typeof window !== 'undefined') {
+      window.open(`mailto:${email}`, '_self');
+    }
   };
 
   return (

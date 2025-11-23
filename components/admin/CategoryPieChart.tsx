@@ -11,8 +11,8 @@ export function CategoryPieChart({ data }: CategoryPieChartProps) {
   const total = data.reduce((sum, d) => sum + d.value, 0);
 
   const segments = useMemo(() => {
-    let currentAngle = 0;
-    return data.map((d) => {
+    return data.reduce<Array<{ path: string; color: string; name: string; value: number; currentAngle: number }>>((acc, d) => {
+      const currentAngle = acc.length > 0 ? acc[acc.length - 1].currentAngle + (acc[acc.length - 1].value / total) * 360 : 0;
       const angle = (d.value / total) * 360;
       const x1 = 50 + 40 * Math.cos((Math.PI * currentAngle) / 180);
       const y1 = 50 + 40 * Math.sin((Math.PI * currentAngle) / 180);
@@ -28,9 +28,9 @@ export function CategoryPieChart({ data }: CategoryPieChartProps) {
         `Z`
       ].join(" ");
 
-      currentAngle += angle;
-      return { path: pathData, color: d.color, name: d.name, value: d.value };
-    });
+      acc.push({ path: pathData, color: d.color, name: d.name, value: d.value, currentAngle });
+      return acc;
+    }, []);
   }, [data, total]);
 
   return (

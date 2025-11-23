@@ -9,20 +9,19 @@ import Image from "next/image";
 import Link from "next/link";
 import { Drawer } from "vaul";
 import { useMediaQuery } from "@/hooks/use-media-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import type { CartItem } from "@/lib/store/cart";
 
-export function CartDrawer() {
-  const { items, isOpen, toggleCart, removeItem, updateQuantity, subtotal } = useCartStore();
-  const isDesktop = useMediaQuery("(min-width: 768px)");
-  const [mounted, setMounted] = useState(false);
+interface CartContentProps {
+  items: CartItem[];
+  toggleCart: () => void;
+  removeItem: (id: string, variantId?: string) => void;
+  updateQuantity: (id: string, quantity: number, variantId?: string) => void;
+  subtotal: () => number;
+}
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) return null;
-
-  const CartContent = () => (
+function CartContent({ items, toggleCart, removeItem, updateQuantity, subtotal }: CartContentProps) {
+  return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border-light p-4">
@@ -119,6 +118,21 @@ export function CartDrawer() {
       )}
     </div>
   );
+}
+
+export function CartDrawer() {
+  const { items, isOpen, toggleCart, removeItem, updateQuantity, subtotal } = useCartStore();
+  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const [mounted, setMounted] = useState(false);
+
+  // Use layout effect pattern for mounting
+  if (typeof window !== 'undefined' && !mounted) {
+    setMounted(true);
+  }
+
+  if (!mounted) return null;
+
+  const cartContentProps = { items, toggleCart, removeItem, updateQuantity, subtotal };
 
   if (isDesktop) {
     return (
@@ -139,7 +153,7 @@ export function CartDrawer() {
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
               className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-surface shadow-2xl"
             >
-              <CartContent />
+              <CartContent {...cartContentProps} />
             </motion.div>
           </>
         )}
@@ -155,7 +169,7 @@ export function CartDrawer() {
           <div className="p-4 bg-surface rounded-t-[10px] flex-1 overflow-hidden">
             <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-gray-300 mb-8" />
             <div className="h-full overflow-hidden">
-               <CartContent />
+               <CartContent {...cartContentProps} />
             </div>
           </div>
         </Drawer.Content>
