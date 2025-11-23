@@ -8,7 +8,8 @@ import {
   ShoppingCart,
   Users,
   Settings,
-  LogOut
+  LogOut,
+  BarChart
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -16,7 +17,9 @@ const sidebarLinks = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Products", href: "/admin/products", icon: Package },
   { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
+  { name: "Bulk Orders", href: "/admin/bulk-orders", icon: Package },
   { name: "Customers", href: "/admin/customers", icon: Users },
+  { name: "Marketing", href: "/admin/marketing", icon: BarChart },
   { name: "Settings", href: "/admin/settings", icon: Settings },
 ];
 

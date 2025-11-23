@@ -4,52 +4,66 @@ import { notFound } from "next/navigation";
 import { Header } from "@/components/shared/Header";
 import { Footer } from "@/components/shared/Footer";
 import { WhatsAppButton } from "@/components/shared/WhatsAppButton";
+import { Pagination } from "@/components/shared/Pagination";
 
 // Helper to capitalize category for display/query
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export default async function CategoryPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ category: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { category } = await params;
+  const { type, page } = await searchParams;
   const categoryName = capitalize(category);
+  const isShoesFilter = type === 'shoes';
+
+  // Pagination Config
+  const currentPage = Number(page) || 1;
+  const itemsPerPage = 12;
+  const from = (currentPage - 1) * itemsPerPage;
+  const to = from + itemsPerPage - 1;
 
   let products = [];
+  let count = 0;
   let error = null;
 
   try {
     const supabase = await createClient();
 
     // Fetch products for this category
-    // We use 'contains' for array columns in Supabase
     let query = supabase
       .from("products")
-      .select("*")
-      .eq("is_active", true);
+      .select("*", { count: "exact" })
+      .eq("is_active", true)
+      .range(from, to);
 
     if (category.toLowerCase() !== "all") {
       query = query.contains("category", [categoryName]);
     }
 
+    if (isShoesFilter) {
+      query = query.contains("category", ["Shoes"]);
+    }
+
     const result = await query;
 
     products = result.data || [];
+    count = result.count || 0;
     error = result.error;
   } catch (e) {
     console.error("Supabase connection error:", e);
-    // Fallback to empty array if connection fails
     products = [];
   }
 
   if (error) {
     console.error("Error fetching products:", error);
-    // In a real app, handle error gracefully
   }
 
   // Fallback for demo if no DB connection or empty
-  // This ensures the UI is visible even if the user hasn't set up Supabase yet
   const mockProducts = [
     {
       id: "mock-1",
@@ -103,21 +117,50 @@ export default async function CategoryPage({
     },
   ];
 
-  const displayProducts = products?.length
-    ? products
-    : mockProducts.filter(p => category.toLowerCase() === 'all' || p.category.toLowerCase() === category.toLowerCase());
+  // If using mock data, handle pagination manually
+  let displayProducts = products;
+  let totalItems = count;
+
+  if (!products?.length && !error) {
+     let filteredMocks = mockProducts.filter(p => category.toLowerCase() === 'all' || p.category.toLowerCase() === category.toLowerCase());
+     if (isShoesFilter) {
+        filteredMocks = filteredMocks.filter(p => p.title.toLowerCase().includes('shoe') || p.title.toLowerCase().includes('loafer') || p.title.toLowerCase().includes('sneaker') || p.title.toLowerCase().includes('boot'));
+     }
+     totalItems = filteredMocks.length;
+     displayProducts = filteredMocks.slice(from, to + 1);
+  }
+
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
 
   return (
     <div className="min-h-screen bg-background">
       <main className="container mx-auto px-4 md:px-6 py-12">
-        <div className="flex flex-col md:flex-row gap-8">
-          {/* Sidebar / Filters */}
-          <aside className="w-full md:w-64 flex-shrink-0 space-y-8">
+        <div className="flex flex-col md:flex-row gap-8 items-start">
+          {/* Sidebar / Filters - Sticky */}
+          <aside className="w-full md:w-64 flex-shrink-0 space-y-8 sticky top-24 h-fit">
             <div>
               <h1 className="text-3xl font-bold mb-2">{categoryName}</h1>
               <p className="text-text-secondary">
-                {displayProducts?.length || 0} products found
+                {totalItems} products found
               </p>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="font-semibold">Category</h3>
+              <div className="flex flex-col gap-2">
+                 <a
+                    href={`/shop/${category}`}
+                    className={`text-sm ${!isShoesFilter ? 'font-bold text-primary' : 'text-text-secondary hover:text-primary'}`}
+                 >
+                    All {categoryName}
+                 </a>
+                 <a
+                    href={`/shop/${category}?type=shoes`}
+                    className={`text-sm ${isShoesFilter ? 'font-bold text-primary' : 'text-text-secondary hover:text-primary'}`}
+                 >
+                    Shoes
+                 </a>
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -150,22 +193,31 @@ export default async function CategoryPage({
           {/* Product Grid */}
           <div className="flex-1">
             {displayProducts && displayProducts.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {displayProducts.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    id={product.id}
-                    title={product.title}
-                    slug={product.slug}
-                    price={product.price}
-                    salePrice={product.sale_price}
-                    image={product.primary_image}
-                    category={categoryName} // Pass the current category context
-                    isNew={false} // Could derive from created_at
-                    stock={10} // Need to fetch inventory if we want real stock
-                  />
-                ))}
-              </div>
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {displayProducts.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      id={product.id}
+                      title={product.title}
+                      slug={product.slug}
+                      price={product.price}
+                      salePrice={product.sale_price}
+                      image={product.primary_image}
+                      category={categoryName} // Pass the current category context
+                      isNew={product.is_new}
+                      stock={10} // Need to fetch inventory if we want real stock
+                    />
+                  ))}
+                </div>
+
+                {/* Pagination */}
+                <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    baseUrl={`/shop/${category}`}
+                />
+              </>
             ) : (
               <div className="flex h-64 flex-col items-center justify-center rounded-2xl bg-surface p-8 text-center">
                 <p className="text-lg font-medium text-text-primary">

@@ -1,11 +1,14 @@
-import { createClient } from "@/lib/supabase/server";
+
 
 export async function logTryOnSession(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   data: {
     userId?: string | null;
     guestId?: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mannequinSettings: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     products: any[];
     imageUrl: string;
     prompt: string;
@@ -27,6 +30,7 @@ export async function logTryOnSession(
     .single();
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function checkRateLimit(supabase: any, identifier: { userId?: string; guestId?: string }): Promise<boolean> {
   const { userId, guestId } = identifier;
 

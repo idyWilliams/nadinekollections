@@ -1,26 +1,71 @@
+
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
-import { Package, ShoppingCart, TrendingUp, Users, ArrowUpRight, ArrowDownRight, DollarSign } from "lucide-react";
+import { Package, ShoppingCart, TrendingUp, Users, ArrowUpRight, ArrowDownRight, DollarSign, AlertTriangle } from "lucide-react";
+import { RevenueChart } from "@/components/admin/RevenueChart";
+import { CategoryPieChart } from "@/components/admin/CategoryPieChart";
+import { RecentOrdersTable } from "@/components/admin/RecentOrdersTable";
+import { LowStockWidget } from "@/components/admin/LowStockWidget";
 
 export default async function AdminDashboard() {
   const supabase = await createClient();
 
-  // Mock stats
+  // 1. Fetch Real Metrics
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Parallel data fetching
+  const [
+    { data: revenueData },
+    { count: ordersTodayCount },
+    { count: totalProductsCount },
+    { count: lowStockCount },
+    { count: totalCustomersCount },
+    { data: lowStockItemsRaw }
+  ] = await Promise.all([
+    // Total Revenue (Paid orders)
+    supabase.from("orders").select("total_amount").eq("payment_status", "paid"),
+    // Orders Today
+    supabase.from("orders").select("*", { count: "exact", head: true }).gte("created_at", today.toISOString()),
+    // Active Products
+    supabase.from("products").select("*", { count: "exact", head: true }).eq("is_active", true),
+    // Low Stock Count (stock < 5)
+    supabase.from("products").select("*", { count: "exact", head: true }).lt("stock", 5),
+    // Total Customers
+    supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "customer"),
+    // Low Stock Items (Top 5)
+    supabase.from("products")
+      .select("id, title, stock, primary_image")
+      .lt("stock", 5)
+      .limit(5)
+  ]);
+
+  const totalRevenue = revenueData?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
+
+  // Map low stock items to match widget interface
+  const lowStockItems = lowStockItemsRaw?.map(item => ({
+    id: item.id,
+    title: item.title,
+    stock: item.stock,
+    image: item.primary_image || '/placeholder.png'
+  })) || [];
+
+  // Stats Array
   const stats = [
     {
       title: "Total Revenue",
-      value: formatCurrency(1250000),
-      change: "+12.5%",
+      value: formatCurrency(totalRevenue),
+      change: "+12.5%", // Placeholder trend
       icon: DollarSign,
       trend: "up",
       color: "text-primary",
       bg: "bg-primary/10",
     },
     {
-      title: "Total Orders",
-      value: "156",
-      change: "+8.2%",
+      title: "Orders Today",
+      value: ordersTodayCount?.toString() || "0",
+      change: "+8.2%", // Placeholder trend
       icon: ShoppingCart,
       trend: "up",
       color: "text-blue-600",
@@ -28,22 +73,40 @@ export default async function AdminDashboard() {
     },
     {
       title: "Active Products",
-      value: "42",
-      change: "-2.4%",
+      value: totalProductsCount?.toString() || "0",
+      change: "-2.4%", // Placeholder trend
       icon: Package,
       trend: "down",
       color: "text-orange-600",
       bg: "bg-orange-100",
     },
     {
-      title: "Total Customers",
-      value: "89",
-      change: "+15.3%",
-      icon: Users,
-      trend: "up",
-      color: "text-green-600",
-      bg: "bg-green-100",
+      title: "Low Stock Alerts",
+      value: lowStockCount?.toString() || "0",
+      change: "Action Needed",
+      icon: AlertTriangle,
+      trend: "neutral",
+      color: "text-red-600",
+      bg: "bg-red-100",
     },
+  ];
+
+  // Mock sales data for chart
+  const chartRevenueData = [
+    { date: "Mon", value: 45000 },
+    { date: "Tue", value: 52000 },
+    { date: "Wed", value: 38000 },
+    { date: "Thu", value: 65000 },
+    { date: "Fri", value: 48000 },
+    { date: "Sat", value: 72000 },
+    { date: "Sun", value: 55000 },
+  ];
+
+  const categoryData = [
+    { name: "Women", value: 45, color: "#D4AF37" }, // Gold
+    { name: "Men", value: 30, color: "#000000" },   // Black
+    { name: "Kids", value: 15, color: "#1E40AF" },  // Blue
+    { name: "Accessories", value: 10, color: "#9CA3AF" }, // Gray
   ];
 
   // Mock recent orders
@@ -54,18 +117,6 @@ export default async function AdminDashboard() {
     { id: "ORD-004", customer: "Sarah Williams", total: 32000, status: "Delivered", date: "2024-03-13", items: 2 },
     { id: "ORD-005", customer: "Chris Evans", total: 15000, status: "Delivered", date: "2024-03-12", items: 1 },
   ];
-
-  // Mock sales data for chart
-  const salesData = [
-    { month: "Jan", value: 45 },
-    { month: "Feb", value: 52 },
-    { month: "Mar", value: 38 },
-    { month: "Apr", value: 65 },
-    { month: "May", value: 48 },
-    { month: "Jun", value: 72 },
-  ];
-
-  const maxSale = Math.max(...salesData.map(d => d.value));
 
   return (
     <div className="space-y-8">
@@ -87,10 +138,10 @@ export default async function AdminDashboard() {
                     <Icon className="h-6 w-6" />
                   </div>
                   <div className={`flex items-center gap-1 text-sm font-medium ${
-                    stat.trend === "up" ? "text-success" : "text-error"
+                    stat.trend === "up" ? "text-success" : stat.trend === "down" ? "text-error" : "text-warning"
                   }`}>
                     {stat.change}
-                    <TrendIcon className="h-4 w-4" />
+                    {stat.trend !== "neutral" && <TrendIcon className="h-4 w-4" />}
                   </div>
                 </div>
                 <div className="space-y-1">
@@ -103,104 +154,46 @@ export default async function AdminDashboard() {
         })}
       </div>
 
+      {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Sales Chart */}
+        {/* Revenue Chart (2/3 width) */}
         <Card className="lg:col-span-2 border-none shadow-card">
           <CardHeader>
-            <CardTitle>Revenue Overview</CardTitle>
+            <CardTitle>Revenue Overview (Last 7 Days)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] w-full flex items-end justify-between gap-4 pt-8 pb-2">
-              {salesData.map((data) => (
-                <div key={data.month} className="flex flex-col items-center gap-2 w-full group">
-                  <div className="relative w-full bg-background rounded-t-lg overflow-hidden h-[200px] flex items-end">
-                    <div
-                      className="w-full bg-primary/80 group-hover:bg-primary transition-all duration-500 rounded-t-md"
-                      style={{ height: `${(data.value / maxSale) * 100}%` }}
-                    />
-                    {/* Tooltip */}
-                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-surface shadow-lg px-2 py-1 rounded text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">
-                      {data.value}k
-                    </div>
-                  </div>
-                  <span className="text-sm text-text-secondary font-medium">{data.month}</span>
-                </div>
-              ))}
-            </div>
+            <RevenueChart data={chartRevenueData} />
           </CardContent>
         </Card>
 
-        {/* Top Categories / Quick Actions */}
+        {/* Category Chart (1/3 width) */}
         <Card className="border-none shadow-card">
           <CardHeader>
-            <CardTitle>Top Categories</CardTitle>
+            <CardTitle>Sales by Category</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-6">
-              {[
-                { name: "Women's Fashion", sales: "45%", color: "bg-secondary" },
-                { name: "Men's Collection", sales: "30%", color: "bg-primary" },
-                { name: "Kids", sales: "15%", color: "bg-blue-400" },
-                { name: "Accessories", sales: "10%", color: "bg-gray-400" },
-              ].map((cat) => (
-                <div key={cat.name} className="space-y-2">
-                  <div className="flex justify-between text-sm font-medium">
-                    <span>{cat.name}</span>
-                    <span>{cat.sales}</span>
-                  </div>
-                  <div className="h-2 w-full bg-background rounded-full overflow-hidden">
-                    <div className={`h-full ${cat.color}`} style={{ width: cat.sales }} />
-                  </div>
-                </div>
-              ))}
-            </div>
+             <CategoryPieChart data={categoryData} />
           </CardContent>
         </Card>
       </div>
 
-      {/* Recent Orders */}
-      <Card className="border-none shadow-card">
-        <CardHeader>
-          <CardTitle>Recent Orders</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="relative w-full overflow-auto">
-            <table className="w-full caption-bottom text-sm text-left">
-              <thead className="[&_tr]:border-b">
-                <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                  <th className="h-12 px-4 align-middle font-medium text-muted-foreground">Order ID</th>
-                  <th className="h-12 px-4 align-middle font-medium text-muted-foreground">Customer</th>
-                  <th className="h-12 px-4 align-middle font-medium text-muted-foreground">Date</th>
-                  <th className="h-12 px-4 align-middle font-medium text-muted-foreground">Items</th>
-                  <th className="h-12 px-4 align-middle font-medium text-muted-foreground">Status</th>
-                  <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody className="[&_tr:last-child]:border-0">
-                {recentOrders.map((order) => (
-                  <tr key={order.id} className="border-b transition-colors hover:bg-muted/50">
-                    <td className="p-4 align-middle font-medium">{order.id}</td>
-                    <td className="p-4 align-middle">{order.customer}</td>
-                    <td className="p-4 align-middle">{order.date}</td>
-                    <td className="p-4 align-middle">{order.items}</td>
-                    <td className="p-4 align-middle">
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors ${
-                        order.status === "Delivered" ? "bg-success/10 text-success" :
-                        order.status === "Shipped" ? "bg-blue-100 text-blue-800" :
-                        order.status === "Processing" ? "bg-yellow-100 text-yellow-800" :
-                        "bg-gray-100 text-gray-800"
-                      }`}>
-                        {order.status}
-                      </span>
-                    </td>
-                    <td className="p-4 align-middle text-right">{formatCurrency(order.total)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Bottom Row: Low Stock & Recent Orders */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Low Stock Widget (1/3 width) */}
+        <div className="lg:col-span-1">
+          <LowStockWidget items={lowStockItems} />
+        </div>
+
+        {/* Recent Orders Table (2/3 width) */}
+        <Card className="lg:col-span-2 border-none shadow-card">
+          <CardHeader>
+            <CardTitle>Recent Orders</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RecentOrdersTable orders={recentOrders} />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

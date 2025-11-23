@@ -41,7 +41,7 @@ export async function middleware(request: NextRequest) {
     if (request.nextUrl.pathname === '/admin/login') {
       // If already logged in, redirect to dashboard
       if (user) {
-        return NextResponse.redirect(new URL('/admin/dashboard', request.url))
+        return NextResponse.redirect(new URL('/admin', request.url))
       }
       return response
     }
@@ -49,6 +49,11 @@ export async function middleware(request: NextRequest) {
     // If not logged in, redirect to login
     if (!user) {
       return NextResponse.redirect(new URL('/admin/login', request.url))
+    }
+
+    // Redirect /admin/dashboard to /admin (canonical dashboard URL)
+    if (request.nextUrl.pathname === '/admin/dashboard') {
+      return NextResponse.redirect(new URL('/admin', request.url))
     }
   }
 

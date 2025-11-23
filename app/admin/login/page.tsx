@@ -26,11 +26,13 @@ const formSchema = z.object({
   password: z.string().min(6, {
     message: "Password must be at least 6 characters.",
   }),
+  otp: z.string().optional(),
 });
 
 export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState<"credentials" | "otp">("credentials");
   const router = useRouter();
   const supabase = createClient();
 
@@ -39,6 +41,7 @@ export default function AdminLoginPage() {
     defaultValues: {
       email: "",
       password: "",
+      otp: "",
     },
   });
 
@@ -46,17 +49,63 @@ export default function AdminLoginPage() {
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email: values.email,
-      password: values.password,
-    });
+    if (step === "credentials") {
+      // Step 1: Verify Email/Password
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: values.email,
+        password: values.password,
+      });
 
-    if (error) {
-      setError(error.message);
-      setLoading(false);
+      if (signInError) {
+        setError(signInError.message);
+        setLoading(false);
+        return;
+      }
+
+      // Check if user is admin
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", data.user.id)
+        .single();
+
+      if (profile?.role !== "admin") {
+        setError("Unauthorized access.");
+        await supabase.auth.signOut();
+        setLoading(false);
+        return;
+      }
+
+      // Step 2: Send OTP
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email: values.email,
+        options: {
+          shouldCreateUser: false,
+        },
+      });
+
+      if (otpError) {
+        setError(otpError.message);
+        setLoading(false);
+      } else {
+        setStep("otp");
+        setLoading(false);
+      }
     } else {
-      router.push("/admin/dashboard");
-      router.refresh();
+      // Step 3: Verify OTP
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        email: values.email,
+        token: values.otp || "",
+        type: "email",
+      });
+
+      if (verifyError) {
+        setError(verifyError.message);
+        setLoading(false);
+      } else {
+        router.push("/admin");
+        router.refresh();
+      }
     }
   };
 
@@ -81,7 +130,9 @@ export default function AdminLoginPage() {
       <div className="w-full max-w-md bg-surface/95 backdrop-blur-md p-8 rounded-xl shadow-2xl border border-white/10 relative z-10 mx-4">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-primary mb-2">Admin Portal</h1>
-          <p className="text-text-secondary">Secure access only</p>
+          <p className="text-text-secondary">
+            {step === "credentials" ? "Secure access only" : "Enter Security Code"}
+          </p>
         </div>
 
         {error && (
@@ -92,50 +143,98 @@ export default function AdminLoginPage() {
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-text-primary">Email Address</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="admin@nadinekollections.com"
-                      className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {step === "credentials" ? (
+              <>
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-text-primary">Email Address</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="admin@nadinekollections.com"
+                          className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-text-primary">Password</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="password"
-                      placeholder="••••••••"
-                      className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-text-primary">Password</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="password"
+                          placeholder="••••••••"
+                          className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="text-right">
+                  <Link
+                    href="/auth/forgot-password"
+                    className="text-xs text-primary hover:text-primary/80 transition-colors"
+                  >
+                    Forgot Password?
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <FormField
+                control={form.control}
+                name="otp"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-text-primary">One-Time Password (OTP)</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="123456"
+                        className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary text-center text-2xl tracking-widest"
+                        maxLength={8}
+                        {...field}
+                      />
+                    </FormControl>
+                    <p className="text-xs text-text-secondary mt-2">
+                      We sent a code to {form.getValues("email")}
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <Button
               type="submit"
               disabled={loading}
               className="w-full shadow-glow py-6 text-lg font-semibold tracking-wide uppercase"
             >
-              {loading ? "Authenticating..." : "Access Dashboard"}
+              {loading
+                ? "Processing..."
+                : step === "credentials"
+                ? "Verify Credentials"
+                : "Verify & Login"}
             </Button>
+
+            {step === "otp" && (
+                <button
+                    type="button"
+                    onClick={() => setStep("credentials")}
+                    className="w-full text-sm text-text-secondary hover:text-primary mt-2"
+                >
+                    Cancel
+                </button>
+            )}
           </form>
         </Form>
 

@@ -80,6 +80,7 @@ export default function OrderDetailsPage() {
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-3">
                 Order {order.order_number}
+                <span className={`px-3 py-1 rounded-full text-sm font-medium border ${
                   order.order_status === 'delivered' ? 'bg-success/10 text-success border-success/20' :
                   order.order_status === 'processing' ? 'bg-warning/10 text-warning-foreground border-warning/20' :
                   order.order_status === 'cancelled' || order.order_status === 'failed' ? 'bg-error/10 text-error border-error/20' :

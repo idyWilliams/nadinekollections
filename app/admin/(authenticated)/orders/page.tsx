@@ -1,91 +1,45 @@
-"use client";
 
-import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { formatCurrency } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Eye } from "lucide-react";
-import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
+import { BulkOrdersTable } from "@/components/admin/BulkOrdersTable";
 
-export default function AdminOrdersPage() {
-  const [orders, setOrders] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+export default async function AdminOrdersPage() {
+  const supabase = await createClient();
 
-  useEffect(() => {
-    const fetchOrders = async () => {
-      // In a real app, fetch from Supabase
-      // const { data } = await supabase.from('orders').select('*, profiles(email)').order('created_at', { ascending: false });
+  const { data: orders } = await supabase
+    .from("orders")
+    .select("id, created_at, total_amount, status, user_id, profiles(full_name)")
+    .order("created_at", { ascending: false })
+    .limit(50);
 
-      // Mock data
-      setOrders([
-        { id: "ORD-001", customer: "John Doe", email: "john@example.com", total: 45000, status: "Pending", date: "2024-03-15", items: 3 },
-        { id: "ORD-002", customer: "Jane Smith", email: "jane@example.com", total: 12500, status: "Processing", date: "2024-03-14", items: 1 },
-        { id: "ORD-003", customer: "Mike Johnson", email: "mike@example.com", total: 89000, status: "Shipped", date: "2024-03-14", items: 5 },
-        { id: "ORD-004", customer: "Sarah Williams", email: "sarah@example.com", total: 32000, status: "Delivered", date: "2024-03-13", items: 2 },
-        { id: "ORD-005", customer: "Chris Evans", email: "chris@example.com", total: 15000, status: "Delivered", date: "2024-03-12", items: 1 },
-      ]);
-      setLoading(false);
-    };
+  // Format orders for the table
+  const formattedOrders = orders?.map(order => ({
+    id: order.id,
+    customer: Array.isArray(order.profiles) ? order.profiles[0]?.full_name : (order.profiles as any)?.full_name || "Guest User",
+    total: order.total_amount || 0,
+    status: order.status || "Pending",
+    date: new Date(order.created_at).toLocaleDateString(),
+    items: 1 // Placeholder as we're not fetching items count yet
+  })) || [];
 
-    fetchOrders();
-  }, []);
+  // If no orders, use mock data for demonstration
+  const displayOrders = formattedOrders.length > 0 ? formattedOrders : [
+    { id: "ORD-001", customer: "John Doe", total: 45000, status: "Pending", date: "2024-03-15", items: 3 },
+    { id: "ORD-002", customer: "Jane Smith", total: 12500, status: "Processing", date: "2024-03-14", items: 1 },
+    { id: "ORD-003", customer: "Mike Johnson", total: 89000, status: "Shipped", date: "2024-03-14", items: 5 },
+    { id: "ORD-004", customer: "Sarah Williams", total: 32000, status: "Delivered", date: "2024-03-13", items: 2 },
+    { id: "ORD-005", customer: "Chris Evans", total: 15000, status: "Delivered", date: "2024-03-12", items: 1 },
+  ];
 
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Orders</h1>
-          <p className="text-text-secondary">Manage customer orders.</p>
+          <p className="text-text-secondary">Manage and fulfill customer orders.</p>
         </div>
       </div>
 
-      <div className="bg-surface rounded-xl shadow-card border border-border-light overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-muted/50 text-text-secondary font-medium border-b border-border-light">
-              <tr>
-                <th className="px-6 py-4">Order ID</th>
-                <th className="px-6 py-4">Customer</th>
-                <th className="px-6 py-4">Date</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-right">Total</th>
-                <th className="px-6 py-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-light">
-              {orders.map((order) => (
-                <tr key={order.id} className="hover:bg-muted/50 transition-colors">
-                  <td className="px-6 py-4 font-medium">{order.id}</td>
-                  <td className="px-6 py-4">
-                    <div className="font-medium">{order.customer}</div>
-                    <div className="text-xs text-text-secondary">{order.email}</div>
-                  </td>
-                  <td className="px-6 py-4">{new Date(order.date).toLocaleDateString()}</td>
-                  <td className="px-6 py-4">
-                    <Badge variant={
-                      order.status === 'Delivered' ? 'success' :
-                      order.status === 'Processing' ? 'warning' :
-                      order.status === 'Shipped' ? 'default' : 'secondary'
-                    }>
-                      {order.status}
-                    </Badge>
-                  </td>
-                  <td className="px-6 py-4 text-right font-medium">{formatCurrency(order.total)}</td>
-                  <td className="px-6 py-4 text-right">
-                    <Link href={`/admin/orders/${order.id}`}>
-                      <Button variant="ghost" size="icon">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <BulkOrdersTable orders={displayOrders} />
     </div>
   );
 }

@@ -311,6 +311,36 @@ async function setupDatabase() {
       stock: 50,
       primary_image: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?q=80&w=1000&auto=format&fit=crop',
       is_sale: true
+    },
+    {
+      title: 'Men Oxford Shoes',
+      slug: 'men-oxford-shoes',
+      description: 'Classic leather oxford shoes for men.',
+      price: 45000,
+      category: ['Men', 'Shoes'],
+      stock: 25,
+      primary_image: 'https://images.unsplash.com/photo-1614252235316-8c857d38b5f4?q=80&w=1000&auto=format&fit=crop',
+      is_new: true
+    },
+    {
+      title: 'Women High Heels',
+      slug: 'women-high-heels',
+      description: 'Elegant stiletto heels.',
+      price: 38000,
+      category: ['Women', 'Shoes'],
+      stock: 30,
+      primary_image: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?q=80&w=1000&auto=format&fit=crop',
+      is_new: true
+    },
+    {
+      title: 'Kids Sneakers',
+      slug: 'kids-sneakers',
+      description: 'Comfortable and durable sneakers for kids.',
+      price: 18000,
+      category: ['Kids', 'Shoes'],
+      stock: 40,
+      primary_image: 'https://images.unsplash.com/photo-1514989940723-e8e51635b782?q=80&w=1000&auto=format&fit=crop',
+      is_new: false
     }
   ];
 

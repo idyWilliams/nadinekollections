@@ -1,10 +1,9 @@
+
 "use client";
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -23,41 +22,36 @@ const formSchema = z.object({
   email: z.string().email({
     message: "Please enter a valid email address.",
   }),
-  password: z.string().min(6, {
-    message: "Password must be at least 6 characters.",
-  }),
 });
 
-export default function LoginPage() {
+export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
   const supabase = createClient();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: "",
-      password: "",
     },
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true);
     setError(null);
+    setMessage(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email: values.email,
-      password: values.password,
+    const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
+      redirectTo: `${window.location.origin}/auth/callback?next=/auth/reset-password`,
     });
 
     if (error) {
       setError(error.message);
-      setLoading(false);
     } else {
-      router.push("/");
-      router.refresh();
+      setMessage("Check your email for the password reset link.");
     }
+    setLoading(false);
   };
 
   return (
@@ -80,16 +74,19 @@ export default function LoginPage() {
 
       <div className="w-full max-w-md bg-surface/95 backdrop-blur-md p-8 rounded-xl shadow-2xl border border-white/10 relative z-10 mx-4">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-block mb-6">
-            <img src="/logo.png" alt="NadineKollections" className="h-16 w-auto mx-auto" />
-          </Link>
-          <h1 className="text-3xl font-bold text-primary mb-2">Welcome Back</h1>
-          <p className="text-text-secondary">Sign in to your account</p>
+          <h1 className="text-3xl font-bold text-primary mb-2">Forgot Password</h1>
+          <p className="text-text-secondary">Enter your email to reset your password</p>
         </div>
 
         {error && (
           <div className="bg-error/10 text-error text-sm p-3 rounded-lg mb-6 border border-error/20">
             {error}
+          </div>
+        )}
+
+        {message && (
+          <div className="bg-success/10 text-success text-sm p-3 rounded-lg mb-6 border border-success/20">
+            {message}
           </div>
         )}
 
@@ -113,47 +110,22 @@ export default function LoginPage() {
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-text-primary">Password</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="password"
-                      placeholder="••••••••"
-                      className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="text-right">
-              <Link
-                href="/auth/forgot-password"
-                className="text-xs text-primary hover:text-primary/80 transition-colors"
-              >
-                Forgot Password?
-              </Link>
-            </div>
-
             <Button
               type="submit"
               disabled={loading}
               className="w-full shadow-glow py-6 text-lg font-semibold tracking-wide uppercase"
             >
-              {loading ? "Signing in..." : "Sign In"}
+              {loading ? "Sending..." : "Send Reset Link"}
             </Button>
           </form>
         </Form>
 
-        <div className="mt-6 text-center text-sm text-text-secondary">
-          Don't have an account?{" "}
-          <Link href="/signup" className="text-secondary font-medium hover:underline">
-            Sign up
+        <div className="mt-6 text-center">
+          <Link
+            href="/login"
+            className="text-sm text-text-secondary hover:text-primary transition-colors"
+          >
+            ← Back to Login
           </Link>
         </div>
       </div>
