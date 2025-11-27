@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import { createNotification } from "@/lib/notifications";
+import { sendEmail } from "@/lib/email";
 
 // Validation schema
 const orderSchema = z.object({
@@ -97,6 +99,45 @@ export async function POST(request: Request) {
       // Should probably rollback order here in a transaction, but Supabase HTTP doesn't support transactions easily without RPC.
       // For MVP, we'll just error out.
       throw new Error("Failed to create order items");
+    }
+
+    // 3. Send Notifications
+    const orderIdShort = order.id.slice(0, 8);
+
+    // Notify Admin (System-wide)
+    await createNotification({
+      type: 'info',
+      title: 'New Order Received',
+      message: `Order #${orderIdShort} from ${shippingDetails.firstName} ${shippingDetails.lastName} - ${new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(total)}`,
+      link: `/admin/orders/${order.id}`,
+    });
+
+    // Notify Customer
+    if (user) {
+      await createNotification({
+        userId: user.id,
+        type: 'success',
+        title: 'Order Confirmed',
+        message: `Your order #${orderIdShort} has been placed successfully.`,
+        link: `/account/orders/${order.id}`,
+        sendEmailTo: shippingDetails.email // Use shipping email as it's most relevant
+      });
+    } else {
+      // Guest - Send Email Only
+      await sendEmail({
+        to: shippingDetails.email,
+        subject: `Order Confirmed #${orderIdShort}`,
+        html: `
+          <div style="font-family: sans-serif; color: #333;">
+            <h2>Order Confirmed</h2>
+            <p>Thank you for your order, ${shippingDetails.firstName}!</p>
+            <p>Order #${orderIdShort} has been received and is being processed.</p>
+            <p><strong>Total:</strong> ${new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(total)}</p>
+            <hr />
+            <p style="font-size: 12px; color: #666;">NadineKollections</p>
+          </div>
+        `
+      });
     }
 
     return NextResponse.json({

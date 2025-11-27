@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { createClient } from "@/lib/supabase/server";
+import { createNotification } from "@/lib/notifications";
+import { sendEmail } from "@/lib/email";
 
 export async function POST(request: Request) {
   try {
@@ -46,7 +48,7 @@ export async function POST(request: Request) {
       // Find order by reference
       const { data: order, error: findError } = await supabase
         .from("orders")
-        .select("id")
+        .select("id, user_id, metadata, total_amount")
         .eq("payment_reference", reference)
         .single();
 
@@ -70,7 +72,44 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: "Database update failed" }, { status: 500 });
       }
 
-      // Here we would also trigger email notifications
+      // Send Notifications
+      const orderIdShort = order.id.slice(0, 8);
+      const amountFormatted = new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(order.total_amount);
+
+      // Notify Admin
+      await createNotification({
+        type: 'success',
+        title: 'Payment Received',
+        message: `Payment of ${amountFormatted} received for Order #${orderIdShort}`,
+        link: `/admin/orders/${order.id}`,
+      });
+
+      // Notify Customer
+      if (order.user_id) {
+        await createNotification({
+          userId: order.user_id,
+          type: 'success',
+          title: 'Payment Successful',
+          message: `We have received your payment for Order #${orderIdShort}.`,
+          link: `/account/orders/${order.id}`,
+          sendEmailTo: order.metadata?.email
+        });
+      } else if (order.metadata?.email) {
+        // Guest Email
+        await sendEmail({
+          to: order.metadata.email,
+          subject: `Payment Receipt - Order #${orderIdShort}`,
+          html: `
+            <div style="font-family: sans-serif; color: #333;">
+              <h2>Payment Successful</h2>
+              <p>We have received your payment of <strong>${amountFormatted}</strong> for Order #${orderIdShort}.</p>
+              <p>Your order is now being processed.</p>
+              <hr />
+              <p style="font-size: 12px; color: #666;">NadineKollections</p>
+            </div>
+          `
+        });
+      }
     }
 
     return NextResponse.json({ message: "Webhook received" }, { status: 200 });

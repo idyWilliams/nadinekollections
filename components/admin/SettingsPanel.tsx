@@ -24,6 +24,7 @@ interface AdminProfile {
   email: string;
   full_name?: string;
   role: string;
+  is_active: boolean;
 }
 
 export function SettingsPanel() {
@@ -120,9 +121,40 @@ export function SettingsPanel() {
     }
   };
 
+  const handleBanAdmin = async (adminId: string, action: "ban" | "unban") => {
+    if (!confirm(`Are you sure you want to ${action} this admin?`)) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch("/api/admin/ban", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adminId, action }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) throw new Error(data.error);
+
+      alert(data.message);
+      fetchAdmins(); // Refresh list
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : `Failed to ${action} admin`;
+      alert(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Tabs defaultValue="general" className="space-y-6">
-      {/* ... */}
+      <TabsList className="grid w-full grid-cols-4">
+        <TabsTrigger value="general">General</TabsTrigger>
+        <TabsTrigger value="team">Team</TabsTrigger>
+        <TabsTrigger value="payments">Payments</TabsTrigger>
+        <TabsTrigger value="notifications">Notifications</TabsTrigger>
+      </TabsList>
+
       {/* General Settings */}
       <TabsContent value="general">
         <Card>
@@ -226,6 +258,16 @@ export function SettingsPanel() {
                     <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-medium">
                         {admin.role}
                     </span>
+                    {!["justminad@gmail.com", "widorenyin0@gmail.com"].includes(admin.email || "") && (
+                      <Button
+                        variant={admin.is_active ? "outline" : "primary"}
+                        size="sm"
+                        onClick={() => handleBanAdmin(admin.id, admin.is_active ? "ban" : "unban")}
+                        disabled={loading}
+                      >
+                        {admin.is_active ? "Ban" : "Unban"}
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}

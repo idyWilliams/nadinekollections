@@ -1,5 +1,6 @@
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
-import { Bell, Search } from "lucide-react";
+import { Search } from "lucide-react";
+import { NotificationCenter } from "@/components/shared/NotificationCenter";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -26,9 +27,7 @@ export default function AdminLayout({
           </div>
 
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon">
-              <Bell className="h-5 w-5 text-text-secondary" />
-            </Button>
+            <NotificationCenter />
             <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
               A
             </div>

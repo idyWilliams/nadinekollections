@@ -10,6 +10,7 @@ import { useCartStore } from "@/lib/store/cart";
 import { createClient } from "@/lib/supabase/client";
 import { User } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
+import { NotificationCenter } from "@/components/shared/NotificationCenter";
 
 export function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -104,6 +105,7 @@ export function Header() {
 
           {user ? (
             <div className="flex items-center gap-2">
+              <NotificationCenter />
               <Link href="/account">
                 <Button variant="ghost" size="icon" className="hidden md:flex" title="Account">
                   <UserIcon className="h-5 w-5" />
