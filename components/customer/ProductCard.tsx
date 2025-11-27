@@ -39,6 +39,12 @@ export function ProductCard({
 }: ProductCardProps) {
   const { addItem } = useCartStore();
   const { addItem: addToWishlist, removeItem, isInWishlist } = useWishlistStore();
+
+  // Calculate discount percentage
+  const discountPercentage = salePrice && price > salePrice
+    ? Math.round(((price - salePrice) / price) * 100)
+    : 0;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -46,12 +52,16 @@ export function ProductCard({
       viewport={{ once: true }}
       whileHover={{ y: -5 }}
       transition={{ duration: 0.3 }}
-      className="group relative rounded-2xl bg-surface p-4 shadow-card hover:shadow-hover"
+      className="group relative rounded-2xl bg-surface p-3 md:p-4 shadow-card hover:shadow-hover"
     >
       {/* Badges */}
-      <div className="absolute left-4 top-4 z-10 flex flex-col gap-2">
+      <div className="absolute left-3 top-3 md:left-4 md:top-4 z-10 flex flex-col gap-2">
         {isNew && <Badge variant="secondary">New</Badge>}
-        {isSale && <Badge variant="destructive">Sale</Badge>}
+        {discountPercentage > 0 && (
+          <Badge variant="destructive" className="font-bold">
+            -{discountPercentage}%
+          </Badge>
+        )}
         {stock && stock < 10 && (
           <Badge variant="warning">Only {stock} left!</Badge>
         )}
@@ -69,7 +79,7 @@ export function ProductCard({
             toast.success("Added to wishlist");
           }
         }}
-        className={`absolute right-4 top-4 z-10 rounded-full p-2 backdrop-blur-sm transition-colors ${
+        className={`absolute right-3 top-3 md:right-4 md:top-4 z-10 rounded-full p-1.5 md:p-2 backdrop-blur-sm transition-colors ${
           isInWishlist(id)
             ? "bg-primary text-white hover:bg-primary/90"
             : "bg-white/80 text-text-secondary hover:bg-white hover:text-error"

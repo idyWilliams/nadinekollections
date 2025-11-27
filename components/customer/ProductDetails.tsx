@@ -28,7 +28,7 @@ interface ProductDetailsProps {
 
 export function ProductDetails({ product }: ProductDetailsProps) {
   const [quantity, setQuantity] = useState(1);
-  const [selectedImage, setSelectedImage] = useState(product.primary_image);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const { addItem } = useCartStore();
 
   const handleAddToCart = () => {
@@ -44,56 +44,85 @@ export function ProductDetails({ product }: ProductDetailsProps) {
 
   const images = product.images && product.images.length > 0
     ? product.images
-    : [product.primary_image, product.primary_image]; // Fallback
+    : [product.primary_image];
+
+  const discountPercentage = product.sale_price && product.price > product.sale_price
+    ? Math.round(((product.price - product.sale_price) / product.price) * 100)
+    : 0;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
       {/* Image Gallery */}
       <div className="space-y-4">
+        {/* Main Image */}
         <motion.div
+          key={selectedImageIndex}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="relative aspect-square overflow-hidden rounded-2xl bg-gray-100 border border-border-light"
         >
           <Image
-            src={selectedImage}
+            src={images[selectedImageIndex]}
             alt={product.title}
             fill
             className="object-cover"
+            sizes="(max-width: 768px) 100vw, 50vw"
             priority
           />
-          {product.sale_price && (
-            <Badge variant="destructive" className="absolute top-4 left-4 text-lg px-3 py-1">
-              Sale
+          {discountPercentage > 0 && (
+            <Badge variant="destructive" className="absolute top-4 left-4 text-lg font-bold px-3 py-1">
+              -{discountPercentage}% OFF
             </Badge>
           )}
         </motion.div>
-        <div className="flex gap-4 overflow-x-auto pb-2">
-          {images.map((img, idx) => (
-            <button
-              key={idx}
-              onClick={() => setSelectedImage(img)}
-              className={`relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-lg border-2 transition-all ${
-                selectedImage === img ? "border-primary" : "border-transparent hover:border-gray-300"
-              }`}
-            >
-              <Image src={img} alt={`View ${idx + 1}`} fill className="object-cover" />
-            </button>
-          ))}
-        </div>
+
+        {/* Thumbnail Gallery */}
+        {images.length > 1 && (
+          <div className="grid grid-cols-4 gap-2">
+            {images.map((img, idx) => (
+              <button
+                key={idx}
+                onClick={() => setSelectedImageIndex(idx)}
+                className={`relative aspect-square overflow-hidden rounded-lg border-2 transition-all ${
+                  selectedImageIndex === idx
+                    ? "border-primary ring-2 ring-primary/20"
+                    : "border-border-light hover:border-primary/50"
+                }`}
+              >
+                <Image
+                  src={img}
+                  alt={`${product.title} view ${idx + 1}`}
+                  fill
+                  className="object-cover"
+                  sizes="100px"
+                />
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Try On Button */}
+        <Button variant="outline" className="w-full gap-2" size="lg">
+          <Sparkles className="h-5 w-5" />
+          Try On Virtually
+        </Button>
       </div>
 
       {/* Product Info */}
-      <div className="space-y-8">
+      <div className="space-y-6">
         <div>
-          <Badge variant="secondary" className="mb-4">{product.category}</Badge>
-          <h1 className="text-4xl font-bold text-text-primary mb-2">{product.title}</h1>
-          <div className="flex items-center gap-4 mb-4">
+          <p className="text-sm text-text-secondary uppercase tracking-wider mb-2">
+            {Array.isArray(product.category) ? product.category[0] : product.category}
+          </p>
+          <h1 className="text-3xl md:text-4xl font-bold mb-4">{product.title}</h1>
+
+          {/* Price */}
+          <div className="flex items-center gap-3 mb-4">
             <span className="text-3xl font-bold text-primary">
               {formatCurrency(product.sale_price || product.price)}
             </span>
-            {product.sale_price && (
-              <span className="text-xl text-text-muted line-through">
+            {product.sale_price && product.price > product.sale_price && (
+              <span className="text-xl text-text-secondary line-through">
                 {formatCurrency(product.price)}
               </span>
             )}

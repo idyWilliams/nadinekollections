@@ -13,8 +13,10 @@ import {
   Trash,
   Edit,
   Eye,
+  EyeOff,
   CheckSquare,
-  Square
+  Square,
+  Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +30,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
 
 interface Product {
   id: string;
@@ -37,6 +42,7 @@ interface Product {
   stock: number;
   image: string;
   status: string;
+  is_active: boolean;
 }
 
 interface ProductInventoryGridProps {
@@ -47,6 +53,44 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const router = useRouter();
+  const supabase = createClient();
+
+  const toggleProductStatus = async (id: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from("products")
+        .update({ is_active: !currentStatus })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      toast.success(`Product ${!currentStatus ? "visible" : "hidden"} successfully`);
+      router.refresh();
+    } catch (error) {
+      console.error("Error updating product status:", error);
+      toast.error("Failed to update product status");
+    }
+  };
+
+  const deleteProduct = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this product? This action cannot be undone.")) return;
+
+    try {
+      const { error } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+
+      toast.success("Product deleted successfully");
+      router.refresh();
+    } catch (error) {
+      console.error("Error deleting product:", error);
+      toast.error("Failed to delete product");
+    }
+  };
 
   // Filter Logic
   const filteredProducts = initialProducts.filter(product =>
@@ -155,10 +199,25 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem><Edit className="mr-2 h-4 w-4" /> Edit</DropdownMenuItem>
-                      <DropdownMenuItem><Eye className="mr-2 h-4 w-4" /> View</DropdownMenuItem>
+                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                      <DropdownMenuItem onClick={() => router.push(`/admin/products/${product.id}/edit`)}>
+                        <Edit className="mr-2 h-4 w-4" /> Edit Product
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => toggleProductStatus(product.id, product.is_active)}>
+                        {product.is_active ? (
+                          <>
+                            <EyeOff className="mr-2 h-4 w-4" /> Hide Product
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="mr-2 h-4 w-4" /> Show Product
+                          </>
+                        )}
+                      </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-error"><Trash className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem>
+                      <DropdownMenuItem className="text-error" onClick={() => deleteProduct(product.id)}>
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete Product
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -179,7 +238,8 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
       {/* List View */}
       {viewMode === 'list' && (
         <div className="rounded-xl border border-border-light bg-surface overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
+          {/* Desktop Table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="bg-muted/50 text-text-secondary font-medium border-b border-border-light">
                 <tr>
@@ -234,6 +294,47 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-4 p-4">
+            {filteredProducts.map((product) => (
+              <div key={product.id} className={`bg-surface rounded-lg border border-border-light p-4 shadow-sm ${selectedProducts.includes(product.id) ? 'ring-2 ring-primary/20' : ''}`}>
+                <div className="flex gap-4 mb-3">
+                  <div className="relative h-16 w-16 rounded-md bg-muted overflow-hidden flex-shrink-0">
+                    <img src={product.image} alt={product.title} className="h-full w-full object-cover" />
+                    <button
+                      onClick={() => toggleSelect(product.id)}
+                      className="absolute top-1 left-1 bg-black/20 rounded p-0.5"
+                    >
+                      {selectedProducts.includes(product.id) ? <CheckSquare className="h-4 w-4 text-primary fill-white" /> : <Square className="h-4 w-4 text-white" />}
+                    </button>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start">
+                      <h3 className="font-medium truncate pr-2">{product.title}</h3>
+                      <Badge variant={product.status === 'Active' ? 'success' : 'secondary'} className="text-[10px] h-5">{product.status}</Badge>
+                    </div>
+                    <p className="text-sm text-text-secondary">{product.category}</p>
+                    <p className="font-bold text-primary mt-1">{formatCurrency(product.price)}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-border-light">
+                  <div className="text-sm">
+                    Stock: <span className={`${product.stock < 5 ? 'text-error font-bold' : ''}`}>{product.stock}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="h-8">
+                      <Edit className="h-3 w-3 mr-1" /> Edit
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-error">
+                      <Trash className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

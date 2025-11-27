@@ -7,12 +7,15 @@ import { Input } from "@/components/ui/input";
 import { formatCurrency } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { CheckCircle, CreditCard, MapPin, Truck } from "lucide-react";
+import { CheckCircle, CreditCard, MapPin, Truck, Tag, X } from "lucide-react";
 
 export default function CheckoutPage() {
   const { items, subtotal, clearCart } = useCartStore();
   const [step, setStep] = useState(1); // 1: Shipping, 2: Payment, 3: Confirmation
   const [loading, setLoading] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState<any>(null);
+  const [promoLoading, setPromoLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
@@ -34,6 +37,44 @@ export default function CheckoutPage() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const handleApplyPromo = async () => {
+    if (!promoCode.trim()) return;
+
+    setPromoLoading(true);
+    try {
+      const response = await fetch("/api/promotions/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: promoCode, orderTotal: subtotal() }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.error || "Invalid promo code");
+        return;
+      }
+
+      setAppliedPromo(data);
+      alert(`Promo code applied! You saved ${formatCurrency(data.discount)}`);
+    } catch (error) {
+      alert("Failed to apply promo code");
+    } finally {
+      setPromoLoading(false);
+    }
+  };
+
+  const handleRemovePromo = () => {
+    setAppliedPromo(null);
+    setPromoCode("");
+  };
+
+  const calculateTotal = () => {
+    const sub = subtotal();
+    const discount = appliedPromo?.discount || 0;
+    return sub - discount;
+  };
+
   const handleSubmitOrder = async () => {
     setLoading(true);
 
@@ -43,8 +84,9 @@ export default function CheckoutPage() {
       // 1. Create Order in Supabase (Pending Payment)
       const orderData = {
         user_id: user?.id || null,
-        total_amount: subtotal(),
+        total_amount: calculateTotal(),
         status: "Pending Payment",
+        promotion_id: appliedPromo?.promo_id || null,
         shipping_address: {
           line1: formData.address,
           city: formData.city,
@@ -77,7 +119,7 @@ export default function CheckoutPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: formData.email,
-          amount: subtotal(),
+          amount: calculateTotal(),
           orderId: order?.id || `DEMO-${Date.now()}`, // Fallback ID
         }),
       });
@@ -195,7 +237,7 @@ export default function CheckoutPage() {
                   Back
                 </Button>
                 <Button className="flex-1 btn-primary" onClick={handleSubmitOrder} disabled={loading}>
-                  {loading ? "Processing..." : `Pay ${formatCurrency(subtotal())}`}
+                  {loading ? "Processing..." : `Pay ${formatCurrency(calculateTotal())}`}
                 </Button>
               </div>
             </div>
@@ -218,27 +260,67 @@ export default function CheckoutPage() {
         </div>
 
         {/* Right Column: Order Summary */}
-        <div className="lg:pl-12">
-          <div className="bg-surface p-6 rounded-xl shadow-card border border-border-light sticky top-24">
+        <div className="lg:sticky lg:top-8 h-fit">
+          <div className="bg-surface border border-border-light rounded-lg p-6 shadow-card">
             <h3 className="text-xl font-bold mb-6">Order Summary</h3>
-            <div className="space-y-4 max-h-[400px] overflow-auto pr-2">
+            <div className="space-y-4 mb-6">
               {items.map((item) => (
                 <div key={`${item.id}-${item.variantId}`} className="flex gap-4">
-                  <div className="relative w-16 h-16 rounded-md overflow-hidden bg-background">
-                    <img src={item.image} alt={item.title} className="object-cover w-full h-full" />
-                    <span className="absolute top-0 right-0 bg-gold text-white text-xs font-bold px-1.5 py-0.5 rounded-bl-md shadow-sm">
-                      {item.quantity}
-                    </span>
-                  </div>
+                  <img
+                    src={item.image}
+                    alt={item.title}
+                    className="w-20 h-20 object-cover rounded-lg"
+                  />
                   <div className="flex-1">
-                    <h4 className="text-sm font-medium line-clamp-2">{item.title}</h4>
-                    {item.variantName && <p className="text-xs text-text-muted">{item.variantName}</p>}
+                    <h4 className="font-medium">{item.title}</h4>
+                    {item.variantName && <p className="text-sm text-text-secondary">{item.variantName}</p>}
+                    <p className="text-sm">Qty: {item.quantity}</p>
                   </div>
-                  <p className="text-sm font-semibold">{formatCurrency(item.price * item.quantity)}</p>
+                  <p className="font-bold">{formatCurrency(item.price * item.quantity)}</p>
                 </div>
               ))}
             </div>
-            <div className="border-t border-border-light my-6 pt-4 space-y-2">
+
+            {/* Promo Code Section */}
+            <div className="border-t border-border-light pt-4 mb-4">
+              {appliedPromo ? (
+                <div className="bg-success/10 border border-success/20 rounded-lg p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Tag className="h-4 w-4 text-success" />
+                    <div>
+                      <p className="text-sm font-medium text-success">{appliedPromo.code} Applied</p>
+                      <p className="text-xs text-success/80">-{formatCurrency(appliedPromo.discount)}</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={handleRemovePromo}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Promo code"
+                    value={promoCode}
+                    onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                    className="flex-1"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={handleApplyPromo}
+                    disabled={promoLoading || !promoCode.trim()}
+                  >
+                    {promoLoading ? "..." : "Apply"}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-border-light pt-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-text-secondary">Subtotal</span>
                 <span>{formatCurrency(subtotal())}</span>
@@ -247,9 +329,15 @@ export default function CheckoutPage() {
                 <span className="text-text-secondary">Shipping</span>
                 <span>Free</span>
               </div>
-              <div className="flex justify-between text-lg font-bold pt-2">
+              {appliedPromo && (
+                <div className="flex justify-between text-sm text-success">
+                  <span>Discount ({appliedPromo.code})</span>
+                  <span>-{formatCurrency(appliedPromo.discount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-lg font-bold pt-2 border-t border-border-light">
                 <span>Total</span>
-                <span>{formatCurrency(subtotal())}</span>
+                <span>{formatCurrency(calculateTotal())}</span>
               </div>
             </div>
           </div>

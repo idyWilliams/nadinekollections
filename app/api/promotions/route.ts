@@ -1,0 +1,124 @@
+import { createClient } from "@/lib/supabase/server";
+import { NextResponse } from "next/server";
+
+export async function GET() {
+  try {
+    const supabase = await createClient();
+
+    // Fetch all promotions with usage stats
+    const { data: promotions, error } = await supabase
+      .from("promotions")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    return NextResponse.json({ promotions });
+  } catch (error: unknown) {
+    console.error("Error fetching promotions:", error);
+    const message = error instanceof Error ? error.message : "Internal Server Error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const {
+      name,
+      coupon_code,
+      promo_type,
+      discount_value,
+      conditions,
+      usage_limit_per_customer,
+      total_usage_limit,
+      start_date,
+      end_date,
+    } = body;
+
+    // Validate required fields
+    if (!name || !coupon_code || !promo_type || !discount_value) {
+      return NextResponse.json(
+        { error: "Missing required fields: name, coupon_code, promo_type, discount_value" },
+        { status: 400 }
+      );
+    }
+
+    // Check if code already exists
+    const { data: existing } = await supabase
+      .from("promotions")
+      .select("id")
+      .eq("coupon_code", coupon_code.toUpperCase())
+      .single();
+
+    if (existing) {
+      return NextResponse.json(
+        { error: "Promo code already exists" },
+        { status: 400 }
+      );
+    }
+
+    // Create promotion
+    const { data: promotion, error } = await supabase
+      .from("promotions")
+      .insert({
+        name,
+        coupon_code: coupon_code.toUpperCase(),
+        promo_type,
+        discount_value,
+        conditions: conditions || {},
+        usage_limit_per_customer,
+        total_usage_limit,
+        start_date,
+        end_date,
+        created_by: user.id,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json({ promotion, message: "Promo code created successfully" });
+  } catch (error: unknown) {
+    console.error("Error creating promotion:", error);
+    const message = error instanceof Error ? error.message : "Internal Server Error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id, is_active } = await request.json();
+
+    if (!id) {
+      return NextResponse.json({ error: "Promotion ID required" }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from("promotions")
+      .update({ is_active, updated_at: new Date().toISOString() })
+      .eq("id", id);
+
+    if (error) throw error;
+
+    return NextResponse.json({ message: "Promotion updated successfully" });
+  } catch (error: unknown) {
+    console.error("Error updating promotion:", error);
+    const message = error instanceof Error ? error.message : "Internal Server Error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

@@ -9,9 +9,11 @@ import {
   Users,
   Settings,
   LogOut,
-  BarChart
+  BarChart,
+  X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 const sidebarLinks = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
@@ -23,15 +25,30 @@ const sidebarLinks = [
   { name: "Settings", href: "/admin/settings", icon: Settings },
 ];
 
-export function AdminSidebar() {
+interface AdminSidebarProps {
+  onClose?: () => void;
+}
+
+export function AdminSidebar({ onClose }: AdminSidebarProps) {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-border-light bg-surface">
-      <div className="flex h-16 items-center border-b border-border-light px-6">
+    <aside className="h-screen w-64 border-r border-border-light bg-surface">
+      <div className="flex h-16 items-center justify-between border-b border-border-light px-6">
         <Link href="/" className="text-xl font-bold text-primary">
           NadineAdmin
         </Link>
+        {/* Close button for mobile */}
+        {onClose && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden"
+            onClick={onClose}
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        )}
       </div>
 
       <div className="flex h-[calc(100vh-4rem)] flex-col justify-between p-4">
@@ -44,6 +61,7 @@ export function AdminSidebar() {
               <Link
                 key={link.href}
                 href={link.href}
+                onClick={onClose}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors",
                   isActive

@@ -9,6 +9,10 @@ import { Pagination } from "@/components/shared/Pagination";
 // Helper to capitalize category for display/query
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+import { ProductFilters } from "@/components/customer/ProductFilters";
+
+// ... (imports remain the same, ensure ProductFilters is imported)
+
 export default async function CategoryPage({
   params,
   searchParams,
@@ -17,10 +21,12 @@ export default async function CategoryPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { category } = await params;
-  const { type, page } = await searchParams;
+  const { type, page, q } = await searchParams;
   const categoryName = capitalize(category);
   const isShoesFilter = type === 'shoes';
+  const searchQuery = typeof q === 'string' ? q : '';
 
+  // ... (data fetching logic remains the same)
   // Pagination Config
   const currentPage = Number(page) || 1;
   const itemsPerPage = 12;
@@ -47,6 +53,10 @@ export default async function CategoryPage({
 
     if (isShoesFilter) {
       query = query.contains("category", ["Shoes"]);
+    }
+
+    if (searchQuery) {
+      query = query.ilike('title', `%${searchQuery}%`);
     }
 
     const result = await query;
@@ -126,6 +136,14 @@ export default async function CategoryPage({
      if (isShoesFilter) {
         filteredMocks = filteredMocks.filter(p => p.title.toLowerCase().includes('shoe') || p.title.toLowerCase().includes('loafer') || p.title.toLowerCase().includes('sneaker') || p.title.toLowerCase().includes('boot'));
      }
+
+      if (searchQuery) {
+        const lowerQ = searchQuery.toLowerCase();
+        filteredMocks = filteredMocks.filter(p =>
+          p.title.toLowerCase().includes(lowerQ) ||
+          p.description.toLowerCase().includes(lowerQ)
+        );
+      }
      totalItems = filteredMocks.length;
      displayProducts = filteredMocks.slice(from, to + 1);
   }
@@ -134,67 +152,21 @@ export default async function CategoryPage({
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 md:px-6 py-12">
+      <main className="container mx-auto px-4 md:px-6 py-8 md:py-12">
         <div className="flex flex-col md:flex-row gap-8 items-start">
-          {/* Sidebar / Filters - Sticky */}
-          <aside className="w-full md:w-64 flex-shrink-0 space-y-8 sticky top-24 h-fit">
-            <div>
-              <h1 className="text-3xl font-bold mb-2">{categoryName}</h1>
-              <p className="text-text-secondary">
-                {totalItems} products found
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="font-semibold">Category</h3>
-              <div className="flex flex-col gap-2">
-                 <a
-                    href={`/shop/${category}`}
-                    className={`text-sm ${!isShoesFilter ? 'font-bold text-primary' : 'text-text-secondary hover:text-primary'}`}
-                 >
-                    All {categoryName}
-                 </a>
-                 <a
-                    href={`/shop/${category}?type=shoes`}
-                    className={`text-sm ${isShoesFilter ? 'font-bold text-primary' : 'text-text-secondary hover:text-primary'}`}
-                 >
-                    Shoes
-                 </a>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="font-semibold">Sort By</h3>
-              <select className="w-full rounded-md border border-border-light bg-surface p-2 text-sm">
-                <option>Newest Arrivals</option>
-                <option>Price: Low to High</option>
-                <option>Price: High to Low</option>
-              </select>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="font-semibold">Price Range</h3>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  placeholder="Min"
-                  className="w-full rounded-md border border-border-light bg-surface p-2 text-sm"
-                />
-                <span>-</span>
-                <input
-                  type="number"
-                  placeholder="Max"
-                  className="w-full rounded-md border border-border-light bg-surface p-2 text-sm"
-                />
-              </div>
-            </div>
-          </aside>
+          {/* Sidebar / Filters */}
+          <ProductFilters
+            categoryName={categoryName}
+            totalItems={totalItems}
+            activeCategory={category}
+            activeType={type as string}
+          />
 
           {/* Product Grid */}
-          <div className="flex-1">
+          <div className="flex-1 w-full">
             {displayProducts && displayProducts.length > 0 ? (
               <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                   {displayProducts.map((product) => (
                     <ProductCard
                       key={product.id}
@@ -203,20 +175,22 @@ export default async function CategoryPage({
                       slug={product.slug}
                       price={product.price}
                       salePrice={product.sale_price}
-                      image={product.primary_image}
-                      category={categoryName} // Pass the current category context
+                      image={product.primary_image || (product.images && product.images[0]) || "/placeholder.jpg"}
+                      category={categoryName}
                       isNew={product.is_new}
-                      stock={10} // Need to fetch inventory if we want real stock
+                      stock={product.stock}
                     />
                   ))}
                 </div>
 
                 {/* Pagination */}
-                <Pagination
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    baseUrl={`/shop/${category}`}
-                />
+                <div className="mt-8">
+                  <Pagination
+                      currentPage={currentPage}
+                      totalPages={totalPages}
+                      baseUrl={`/shop/${category}`}
+                  />
+                </div>
               </>
             ) : (
               <div className="flex h-64 flex-col items-center justify-center rounded-2xl bg-surface p-8 text-center">

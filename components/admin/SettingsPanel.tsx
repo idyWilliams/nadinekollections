@@ -25,6 +25,7 @@ interface AdminProfile {
   full_name?: string;
   role: string;
   is_active: boolean;
+  deleted_at?: string | null;
 }
 
 export function SettingsPanel() {
@@ -41,6 +42,7 @@ export function SettingsPanel() {
     paystackPublicKey: "pk_test_...",
     paystackSecretKey: "sk_test_...",
     emailNotifications: true,
+    lowStockNotifications: true,
   });
 
   const supabase = createClient();
@@ -49,7 +51,8 @@ export function SettingsPanel() {
     const { data } = await supabase
       .from("profiles")
       .select("*")
-      .eq("role", "admin");
+      .eq("role", "admin")
+      .is("deleted_at", null); // Only show non-deleted admins
     if (data) setAdmins(data as AdminProfile[]);
   };
 
@@ -121,28 +124,64 @@ export function SettingsPanel() {
     }
   };
 
-  const handleBanAdmin = async (adminId: string, action: "ban" | "unban") => {
-    if (!confirm(`Are you sure you want to ${action} this admin?`)) return;
+  const handleBanAdmin = async (adminId: string, currentlyActive: boolean) => {
+    if (!currentlyActive) {
+      // Reactivate
+      if (!confirm("Are you sure you want to reactivate this admin? They will be able to login again.")) return;
 
-    setLoading(true);
-    try {
-      const response = await fetch("/api/admin/ban", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ adminId, action }),
-      });
+      setLoading(true);
+      try {
+        const response = await fetch("/api/admin/ban", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ adminId, action: "reactivate" }),
+        });
 
-      const data = await response.json();
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
 
-      if (!response.ok) throw new Error(data.error);
+        alert(data.message);
+        fetchAdmins();
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Failed to reactivate admin";
+        alert(message);
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      // Ban with option to delete permanently
+      const permanentDelete = confirm(
+        "Do you want to PERMANENTLY DELETE this admin?\n\n" +
+        "Click OK to permanently delete (cannot be undone)\n" +
+        "Click Cancel to just ban (can be reactivated later)"
+      );
 
-      alert(data.message);
-      fetchAdmins(); // Refresh list
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : `Failed to ${action} admin`;
-      alert(message);
-    } finally {
-      setLoading(false);
+      const action = permanentDelete ? "delete" : "ban";
+      const confirmMessage = permanentDelete
+        ? "Are you absolutely sure? This admin will be PERMANENTLY DELETED and cannot access the system again."
+        : "Are you sure you want to ban this admin? They won't be able to login but can be reactivated later.";
+
+      if (!confirm(confirmMessage)) return;
+
+      setLoading(true);
+      try {
+        const response = await fetch("/api/admin/ban", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ adminId, action, permanentDelete }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+
+        alert(data.message);
+        fetchAdmins();
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : `Failed to ${action} admin`;
+        alert(message);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -262,10 +301,10 @@ export function SettingsPanel() {
                       <Button
                         variant={admin.is_active ? "outline" : "primary"}
                         size="sm"
-                        onClick={() => handleBanAdmin(admin.id, admin.is_active ? "ban" : "unban")}
+                        onClick={() => handleBanAdmin(admin.id, admin.is_active)}
                         disabled={loading}
                       >
-                        {admin.is_active ? "Ban" : "Unban"}
+                        {admin.is_active ? "Ban" : "Reactivate"}
                       </Button>
                     )}
                   </div>
@@ -335,7 +374,10 @@ export function SettingsPanel() {
                   Get notified when products fall below threshold.
                 </p>
               </div>
-              <Switch checked={true} disabled />
+              <Switch
+                checked={settings.lowStockNotifications}
+                onCheckedChange={(checked) => setSettings({ ...settings, lowStockNotifications: checked })}
+              />
             </div>
           </CardContent>
         </Card>

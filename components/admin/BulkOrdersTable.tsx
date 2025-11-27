@@ -128,7 +128,8 @@ export function BulkOrdersTable({ orders: initialOrders }: BulkOrdersTableProps)
       )}
 
       {/* Table */}
-      <div className="rounded-md border border-border-light bg-surface overflow-hidden">
+      {/* Desktop Table */}
+      <div className="hidden md:block rounded-md border border-border-light bg-surface overflow-hidden">
         <div className="relative w-full overflow-auto">
           <table className="w-full caption-bottom text-sm text-left">
             <thead className="bg-muted/50 [&_tr]:border-b">
@@ -211,6 +212,77 @@ export function BulkOrdersTable({ orders: initialOrders }: BulkOrdersTableProps)
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-4">
+        {sortedOrders.map((order) => (
+          <div key={order.id} className={`bg-surface rounded-lg border border-border-light p-4 shadow-sm ${selectedOrders.includes(order.id) ? 'ring-2 ring-primary/20' : ''}`}>
+            <div className="flex justify-between items-start mb-3">
+              <div className="flex items-center gap-3">
+                <button onClick={() => toggleSelect(order.id)}>
+                  {selectedOrders.includes(order.id) ? <CheckSquare className="h-5 w-5 text-primary" /> : <Square className="h-5 w-5 text-text-muted" />}
+                </button>
+                <div>
+                  <span className="text-xs text-text-muted">Order ID</span>
+                  <p className="font-medium">{order.id}</p>
+                </div>
+              </div>
+              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                order.status === "Delivered" ? "bg-success/10 text-success" :
+                order.status === "Shipped" ? "bg-blue-100 text-blue-800" :
+                order.status === "Processing" ? "bg-yellow-100 text-yellow-800" :
+                "bg-gray-100 text-gray-800"
+              }`}>
+                {order.status}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mb-4 pl-8">
+              <div>
+                <span className="text-xs text-text-muted">Customer</span>
+                <p className="text-sm">{order.customer}</p>
+              </div>
+              <div>
+                <span className="text-xs text-text-muted">Date</span>
+                <p className="text-sm">{order.date}</p>
+              </div>
+              <div>
+                <span className="text-xs text-text-muted">Items</span>
+                <p className="text-sm">{order.items}</p>
+              </div>
+              <div>
+                <span className="text-xs text-text-muted">Total</span>
+                <p className="font-bold text-primary">{formatCurrency(order.total)}</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-border-light pl-8">
+              <Button variant="outline" size="sm" className="h-8">
+                <Eye className="h-3 w-3 mr-1" /> View
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem>
+                      <Truck className="mr-2 h-4 w-4" /> Mark as Shipped
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                      <Printer className="mr-2 h-4 w-4" /> Print Label
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="text-error">
+                      <RotateCcw className="mr-2 h-4 w-4" /> Refund Order
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

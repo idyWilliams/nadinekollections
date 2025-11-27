@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import { User } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import { NotificationCenter } from "@/components/shared/NotificationCenter";
+import { SearchInput } from "@/components/shared/SearchInput";
 
 export function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -95,13 +96,7 @@ export function Header() {
 
         {/* Actions */}
         <div className="flex items-center gap-4">
-          <div className="hidden md:block relative w-64">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-            <Input
-              placeholder="Search products..."
-              className="pl-10 h-10 bg-background border-transparent focus:bg-surface"
-            />
-          </div>
+            <SearchInput className="w-64" />
 
           {user ? (
             <div className="flex items-center gap-2">
@@ -156,9 +151,9 @@ export function Header() {
             className="md:hidden border-t border-border-light bg-surface px-4 py-4"
           >
             <nav className="flex flex-col gap-4">
-              <Input
-                placeholder="Search products..."
-                className="bg-background"
+              <SearchInput
+                className="w-full"
+                onSearch={() => setIsMobileMenuOpen(false)}
               />
               <Link
                 href="/shop/kids"

@@ -101,57 +101,74 @@ export async function POST(request: Request) {
       throw new Error("Failed to create order items");
     }
 
-    // 3. Send Notifications
-    const orderIdShort = order.id.slice(0, 8);
+    // 3. Increment promo usage count if promo was used
+    if (body.promotion_id) {
+      await supabase.rpc('increment_promo_usage', { promo_id: body.promotion_id });
+    }
 
-    // Notify Admin (System-wide)
-    await createNotification({
-      type: 'info',
-      title: 'New Order Received',
-      message: `Order #${orderIdShort} from ${shippingDetails.firstName} ${shippingDetails.lastName} - ${new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(total)}`,
-      link: `/admin/orders/${order.id}`,
-    });
+    // 4. Send notifications
+    // Notify admins
+    const { data: admins } = await supabase
+      .from("profiles")
+      .select("id, email")
+      .eq("role", "admin")
+      .eq("is_active", true);
 
-    // Notify Customer
+    if (admins) {
+      for (const admin of admins) {
+        await createNotification({
+          userId: admin.id,
+          type: "info",
+          title: "New Order Received",
+          message: `Order #${order.id.slice(0, 8)} for ${formatCurrency(total)}`,
+          link: `/admin/orders`,
+          sendEmailTo: admin.email,
+        });
+      }
+    }
+
+    // Notify customer if authenticated
     if (user) {
       await createNotification({
         userId: user.id,
-        type: 'success',
-        title: 'Order Confirmed',
-        message: `Your order #${orderIdShort} has been placed successfully.`,
+        type: "success",
+        title: "Order Confirmed",
+        message: `Your order for ${formatCurrency(total)} has been received`,
         link: `/account/orders/${order.id}`,
-        sendEmailTo: shippingDetails.email // Use shipping email as it's most relevant
+        sendEmailTo: shippingDetails.email,
       });
     } else {
-      // Guest - Send Email Only
+      // Send email to guest
       await sendEmail({
         to: shippingDetails.email,
-        subject: `Order Confirmed #${orderIdShort}`,
+        subject: "Order Confirmation - NadineKollections",
         html: `
           <div style="font-family: sans-serif; color: #333;">
-            <h2>Order Confirmed</h2>
-            <p>Thank you for your order, ${shippingDetails.firstName}!</p>
-            <p>Order #${orderIdShort} has been received and is being processed.</p>
-            <p><strong>Total:</strong> ${new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(total)}</p>
+            <h2>Order Confirmed!</h2>
+            <p>Dear ${shippingDetails.firstName},</p>
+            <p>Thank you for your order. We have received your order and will process it shortly.</p>
+            <p><strong>Order Total:</strong> ${formatCurrency(total)}</p>
             <hr />
             <p style="font-size: 12px; color: #666;">NadineKollections</p>
           </div>
-        `
+        `,
       });
     }
 
     return NextResponse.json({
-      success: true,
+      message: "Order created successfully",
       orderId: order.id,
-      message: "Order created successfully"
     });
-
   } catch (error: unknown) {
-    console.error("Order API error:", error);
+    console.error("Error creating order:", error);
     const message = error instanceof Error ? error.message : "Internal Server Error";
-    return NextResponse.json(
-      { message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency: 'NGN',
+  }).format(amount);
 }
