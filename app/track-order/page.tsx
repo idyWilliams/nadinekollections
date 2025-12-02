@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,7 @@ interface Order {
   user_id?: string;
 }
 
-export default function TrackOrderPage() {
+function TrackOrderContent() {
   const [orderId, setOrderId] = useState("");
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(false);
@@ -212,5 +212,13 @@ export default function TrackOrderPage() {
         </AnimatePresence>
       </motion.div>
     </div>
+  );
+}
+
+export default function TrackOrderPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <TrackOrderContent />
+    </Suspense>
   );
 }

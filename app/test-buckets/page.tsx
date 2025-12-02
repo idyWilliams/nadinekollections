@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
 
 export default function TestBucketsPage() {
-  const [buckets, setBuckets] = useState<any[]>([]);
+  const [buckets, setBuckets] = useState<Array<{ id: string; name: string; public: boolean }>>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

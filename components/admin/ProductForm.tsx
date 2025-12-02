@@ -21,7 +21,23 @@ import {
 import { ProductCard } from "@/components/customer/ProductCard";
 
 interface ProductFormProps {
-  initialData?: any;
+  initialData?: {
+    id?: string;
+    title?: string;
+    description?: string;
+    category?: string[];
+    original_price?: number;
+    sale_price?: number;
+    price?: number;
+    stock?: number;
+    sku?: string;
+    tags?: string[];
+    promotion_id?: string;
+    seo_meta?: { title?: string; description?: string };
+    images?: string[];
+    primary_image?: string;
+    gallery_images?: string[];
+  };
   isEditing?: boolean;
 }
 
@@ -44,7 +60,14 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
   const [isLoading, setIsLoading] = useState(false);
   const [images, setImages] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
-  const [promotions, setPromotions] = useState<any[]>([]);
+  const [promotions, setPromotions] = useState<Array<{
+    id: string;
+    code: string;
+    is_active: boolean;
+    coupon_code?: string;
+    promo_type?: string;
+    discount_value?: number;
+  }>>([]);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const [formData, setFormData] = useState<FormData>({
@@ -87,7 +110,7 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
       const res = await fetch("/api/promotions");
       if (res.ok) {
         const data = await res.json();
-        setPromotions(data.promotions?.filter((p: any) => p.is_active) || []);
+        setPromotions(data.promotions?.filter((p: { is_active: boolean }) => p.is_active) || []);
       }
     };
     fetchPromos();

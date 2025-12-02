@@ -3,7 +3,7 @@
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface SearchInputProps {
@@ -16,12 +16,8 @@ interface SearchInputProps {
 export function SearchInput({ className, placeholder = "Search products...", onSearch, autoFocus }: SearchInputProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [query, setQuery] = useState("");
-
-  // Sync with URL param
-  useEffect(() => {
-    setQuery(searchParams.get("q") || "");
-  }, [searchParams]);
+  // Initialize from URL param directly instead of using effect
+  const [query, setQuery] = useState(searchParams.get("q") || "");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

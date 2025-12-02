@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Filter } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { MobileFilterSheet } from "@/components/customer/MobileFilterSheet";
 
 interface ProductFiltersProps {
@@ -13,16 +12,19 @@ interface ProductFiltersProps {
   activeType?: string;
 }
 
-export function ProductFilters({
+// Move FilterContent outside to avoid creating component during render
+function FilterContent({
   categoryName,
   totalItems,
   activeCategory,
-  activeType,
-}: ProductFiltersProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const isShoesFilter = activeType === "shoes";
-
-  const FilterContent = () => (
+  isShoesFilter
+}: {
+  categoryName: string;
+  totalItems: number;
+  activeCategory: string;
+  isShoesFilter: boolean;
+}) {
+  return (
     <>
       <div className="hidden md:block">
         <h1 className="text-3xl font-bold mb-2">{categoryName}</h1>
@@ -82,6 +84,16 @@ export function ProductFilters({
       </div>
     </>
   );
+}
+
+export function ProductFilters({
+  categoryName,
+  totalItems,
+  activeCategory,
+  activeType,
+}: ProductFiltersProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const isShoesFilter = activeType === "shoes";
 
   return (
     <>
@@ -101,12 +113,22 @@ export function ProductFilters({
 
       {/* Mobile Sheet */}
       <MobileFilterSheet isOpen={isOpen} onClose={() => setIsOpen(false)}>
-        <FilterContent />
+        <FilterContent
+          categoryName={categoryName}
+          totalItems={totalItems}
+          activeCategory={activeCategory}
+          isShoesFilter={isShoesFilter}
+        />
       </MobileFilterSheet>
 
       {/* Desktop Sidebar */}
       <aside className="hidden md:block w-64 flex-shrink-0 space-y-8 sticky top-24 h-fit bg-background z-10">
-        <FilterContent />
+        <FilterContent
+          categoryName={categoryName}
+          totalItems={totalItems}
+          activeCategory={activeCategory}
+          isShoesFilter={isShoesFilter}
+        />
       </aside>
     </>
   );

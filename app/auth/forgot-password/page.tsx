@@ -25,6 +25,8 @@ const formSchema = z.object({
   }),
 });
 
+export const dynamic = 'force-dynamic';
+
 export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);

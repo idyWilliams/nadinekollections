@@ -8,7 +8,7 @@ import { Loader2 } from "lucide-react";
 
 export default function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [product, setProduct] = useState<any>(null);
+  const [product, setProduct] = useState<Record<string, unknown> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {

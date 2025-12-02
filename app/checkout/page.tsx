@@ -10,17 +10,19 @@ import { useRouter } from "next/navigation";
 import { CheckCircle, CreditCard, MapPin, Truck, Tag, X } from "lucide-react";
 import Image from "next/image";
 
+export const dynamic = 'force-dynamic';
+
 export default function CheckoutPage() {
   const { items, subtotal, clearCart } = useCartStore();
   const [step, setStep] = useState(1); // 1: Shipping, 2: Payment, 3: Confirmation
   const [loading, setLoading] = useState(false);
   const [promoCode, setPromoCode] = useState("");
-  const [appliedPromo, setAppliedPromo] = useState<any>(null);
+  const [appliedPromo, setAppliedPromo] = useState<{ promo_id: string; discount: number; code: string } | null>(null);
   const [promoLoading, setPromoLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
   const [createAccount, setCreateAccount] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
 
   // Check if user is logged in
   useEffect(() => {
@@ -277,7 +279,7 @@ export default function CheckoutPage() {
                         Create an account for faster checkout next time
                       </label>
                       <p className="text-xs text-text-secondary mt-1">
-                        We'll use your email and create a secure account for you automatically
+                        We&apos;ll use your email and create a secure account for you automatically
                       </p>
                     </div>
                   </div>

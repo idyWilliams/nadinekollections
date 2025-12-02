@@ -1,12 +1,13 @@
 "use client";
 
+import { Suspense } from "react";
 import { useWishlistStore } from "@/lib/store/wishlist";
 import { ProductCard } from "@/components/customer/ProductCard";
 import { Button } from "@/components/ui/button";
 import { Heart } from "lucide-react";
 import Link from "next/link";
 
-export default function WishlistPage() {
+function WishlistContent() {
   const { items } = useWishlistStore();
 
   return (
@@ -47,5 +48,13 @@ export default function WishlistPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function WishlistPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <WishlistContent />
+    </Suspense>
   );
 }
