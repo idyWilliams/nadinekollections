@@ -21,6 +21,12 @@ import {
 import { Input } from "@/components/ui/input";
 
 const formSchema = z.object({
+  firstName: z.string().min(2, {
+    message: "First name must be at least 2 characters.",
+  }),
+  lastName: z.string().min(2, {
+    message: "Last name must be at least 2 characters.",
+  }),
   email: z.string().email({
     message: "Please enter a valid email address.",
   }),
@@ -41,6 +47,8 @@ export default function SignupPage() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      firstName: "",
+      lastName: "",
       email: "",
       phone: "",
       password: "",
@@ -56,6 +64,7 @@ export default function SignupPage() {
       password: values.password,
       options: {
         data: {
+          full_name: `${values.firstName} ${values.lastName}`,
           phone: values.phone,
         },
       },
@@ -105,6 +114,44 @@ export default function SignupPage() {
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="firstName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-text-primary">First Name</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="John"
+                        className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="lastName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-text-primary">Last Name</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Doe"
+                        className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <FormField
               control={form.control}
               name="email"

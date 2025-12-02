@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCartStore } from "@/lib/store/cart";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,9 +19,21 @@ export default function CheckoutPage() {
   const [promoLoading, setPromoLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+  const [createAccount, setCreateAccount] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Check if user is logged in
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUser(user);
+    };
+    checkUser();
+  }, [supabase]);
 
   const [formData, setFormData] = useState({
     email: "",
+    phone: "",
     firstName: "",
     lastName: "",
     address: "",
@@ -32,6 +44,7 @@ export default function CheckoutPage() {
     cardNumber: "",
     expiry: "",
     cvc: "",
+    password: "",
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -80,11 +93,42 @@ export default function CheckoutPage() {
     setLoading(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      let { data: { user } } = await supabase.auth.getUser();
+
+      // If user wants to create account and is not already logged in
+      if (createAccount && !user && formData.email && formData.password) {
+        try {
+          // Create account
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email: formData.email,
+            password: formData.password,
+            options: {
+              data: {
+                full_name: `${formData.firstName} ${formData.lastName}`,
+              },
+            },
+          });
+
+          if (signUpError) {
+            console.error("Account creation error:", signUpError);
+            alert(`Account creation failed: ${signUpError.message}. Continuing as guest.`);
+          } else if (signUpData.user) {
+            // Account created successfully, update user reference
+            user = signUpData.user;
+            console.log("Account created and user signed in automatically");
+          }
+        } catch (accountError) {
+          console.error("Account creation error:", accountError);
+          // Continue with guest checkout if account creation fails
+        }
+      }
 
       // 1. Create Order in Supabase (Pending Payment)
       const orderData = {
         user_id: user?.id || null,
+        customer_name: `${formData.firstName} ${formData.lastName}`,
+        customer_phone: formData.phone,
+        guest_email: !user ? formData.email : null,
         total_amount: calculateTotal(),
         status: "Pending Payment",
         promotion_id: appliedPromo?.promo_id || null,
@@ -195,6 +239,10 @@ export default function CheckoutPage() {
                 <Input name="email" type="email" value={formData.email} onChange={handleInputChange} placeholder="john@example.com" />
               </div>
               <div className="space-y-2">
+                <label className="text-sm font-medium">Phone Number (WhatsApp)</label>
+                <Input name="phone" type="tel" value={formData.phone} onChange={handleInputChange} placeholder="+234 800 000 0000" />
+              </div>
+              <div className="space-y-2">
                 <label className="text-sm font-medium">Address</label>
                 <Input name="address" value={formData.address} onChange={handleInputChange} placeholder="123 Main St" />
               </div>
@@ -212,7 +260,49 @@ export default function CheckoutPage() {
                   <Input name="zip" value={formData.zip} onChange={handleInputChange} placeholder="10001" />
                 </div>
               </div>
-              <Button className="w-full btn-primary" onClick={() => setStep(2)}>
+
+              {/* Create Account Checkbox - Only show for guest users */}
+              {!currentUser && (
+                <div className="space-y-4 p-4 bg-muted/20 rounded-lg border border-border-light">
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      id="createAccount"
+                      checked={createAccount}
+                      onChange={(e) => setCreateAccount(e.target.checked)}
+                      className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                    <div className="flex-1">
+                      <label htmlFor="createAccount" className="text-sm font-medium cursor-pointer">
+                        Create an account for faster checkout next time
+                      </label>
+                      <p className="text-xs text-text-secondary mt-1">
+                        We'll use your email and create a secure account for you automatically
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Conditional Password Field */}
+                  {createAccount && (
+                    <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                      <label className="text-sm font-medium">Create Password</label>
+                      <Input
+                        name="password"
+                        type="password"
+                        value={formData.password}
+                        onChange={handleInputChange}
+                        placeholder="Enter a secure password (min 6 characters)"
+                        minLength={6}
+                        required={createAccount}
+                      />
+                      <p className="text-xs text-text-secondary">
+                        Your account will be created automatically when you proceed to payment
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+               <Button className="w-full btn-primary" onClick={() => setStep(2)}>
                 Continue to Payment
               </Button>
             </div>
