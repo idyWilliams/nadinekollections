@@ -3,7 +3,7 @@
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { cn } from "@/lib/utils";
 
 interface SearchInputProps {
@@ -13,7 +13,7 @@ interface SearchInputProps {
   autoFocus?: boolean;
 }
 
-export function SearchInput({ className, placeholder = "Search products...", onSearch, autoFocus }: SearchInputProps) {
+function SearchInputContent({ className, placeholder = "Search products...", onSearch, autoFocus }: SearchInputProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   // Initialize from URL param directly instead of using effect
@@ -40,5 +40,13 @@ export function SearchInput({ className, placeholder = "Search products...", onS
         autoFocus={autoFocus}
       />
     </form>
+  );
+}
+
+export function SearchInput(props: SearchInputProps) {
+  return (
+    <Suspense fallback={<div className={cn("h-10 w-full bg-surface rounded-md animate-pulse", props.className)} />}>
+      <SearchInputContent {...props} />
+    </Suspense>
   );
 }

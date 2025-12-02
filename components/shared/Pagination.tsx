@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
 interface PaginationProps {
   currentPage: number;
@@ -12,7 +13,7 @@ interface PaginationProps {
   baseUrl: string;
 }
 
-export function Pagination({ currentPage, totalPages, baseUrl }: PaginationProps) {
+function PaginationContent({ currentPage, totalPages, baseUrl }: PaginationProps) {
   const searchParams = useSearchParams();
 
   // Helper to preserve existing search params (like type=shoes)
@@ -90,5 +91,13 @@ export function Pagination({ currentPage, totalPages, baseUrl }: PaginationProps
         </Button>
       )}
     </div>
+  );
+}
+
+export function Pagination(props: PaginationProps) {
+  return (
+    <Suspense fallback={null}>
+      <PaginationContent {...props} />
+    </Suspense>
   );
 }

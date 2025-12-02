@@ -60,7 +60,7 @@ export function Header() {
 
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
-          <Image src="/logo.png" alt="NadineKollections" width={150} height={80} className="h-20 w-auto" priority />
+          <Image src="/logo.png" alt="NadineKollections" width={200} height={180}  priority />
         </Link>
 
         {/* Desktop Navigation */}
@@ -77,7 +77,7 @@ export function Header() {
               <Link href="/about" className="text-sm font-medium hover:text-primary transition-colors">
                 About
               </Link>
-              <div className="h-4 w-px bg-border-light mx-2" />
+              {/* <div className="h-4 w-px bg-border-light mx-2" /> */}
               <Link href="/studio" className="group flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-primary-foreground text-sm font-medium shadow-glow hover:shadow-lg hover:scale-105 transition-all duration-300">
                 <Sparkles className="h-3.5 w-3.5 transition-transform group-hover:rotate-12" />
                 <span>Virtual Studio</span>
