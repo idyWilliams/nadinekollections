@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -84,13 +85,13 @@ export default function SignupPage() {
 
       {/* Top Left Logo */}
       <Link href="/" className="absolute top-6 left-6 z-20">
-        <img src="/logo.png" alt="NadineKollections" className="h-16 w-auto" />
+        <Image src="/logo.png" alt="NadineKollections" width={120} height={64} className="h-16 w-auto" priority />
       </Link>
 
       <div className="w-full max-w-md bg-surface/95 backdrop-blur-md p-8 rounded-xl shadow-2xl border border-white/10 relative z-10 mx-4">
         <div className="text-center mb-8">
           <Link href="/" className="inline-block mb-6">
-            <img src="/logo.png" alt="NadineKollections" className="h-16 w-auto mx-auto" />
+            <Image src="/logo.png" alt="NadineKollections" width={120} height={64} className="h-16 w-auto mx-auto" priority />
           </Link>
           <h1 className="text-3xl font-bold text-primary mb-2">Create Account</h1>
           <p className="text-text-secondary">Join our exclusive community</p>

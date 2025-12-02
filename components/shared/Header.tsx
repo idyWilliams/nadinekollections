@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { ShoppingBag, Search, User as UserIcon, Menu, LogOut, Heart, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ import { SearchInput } from "@/components/shared/SearchInput";
 
 export function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const { toggleCart, items } = useCartStore();
   const itemCount = items.reduce((acc, item) => acc + item.quantity, 0);
   const [user, setUser] = useState<User | null>(null);
@@ -58,7 +60,7 @@ export function Header() {
 
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
-          <img src="/logo.png" alt="NadineKollections" className="h-20 w-auto" />
+          <Image src="/logo.png" alt="NadineKollections" width={150} height={80} className="h-20 w-auto" priority />
         </Link>
 
         {/* Desktop Navigation */}
@@ -96,8 +98,19 @@ export function Header() {
 
         {/* Actions */}
         <div className="flex items-center gap-4">
-            <SearchInput className="w-64" />
+          {/* Desktop Search */}
+          <div className="hidden md:block w-64">
+            <SearchInput className="w-full" />
+          </div>
 
+          {/* Mobile Search Toggle */}
+          <button
+            className="md:hidden p-2 hover:bg-muted/20 rounded-full transition-colors"
+            onClick={() => setIsSearchOpen(!isSearchOpen)}
+            aria-label="Toggle Search"
+          >
+            <Search className="h-5 w-5 text-text-primary" />
+          </button>
           {user ? (
             <div className="flex items-center gap-2">
               <NotificationCenter />
@@ -140,6 +153,24 @@ export function Header() {
           </Button>
         </div>
       </div>
+
+      {/* Mobile Search Overlay */}
+      <AnimatePresence>
+        {isSearchOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="md:hidden border-t border-border-light bg-surface px-4 py-4 absolute top-full left-0 w-full shadow-md"
+          >
+            <SearchInput
+              className="w-full"
+              autoFocus
+              onSearch={() => setIsSearchOpen(false)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Mobile Menu */}
       <AnimatePresence>

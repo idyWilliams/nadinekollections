@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -183,8 +184,14 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
                    {selectedProducts.includes(product.id) ? <CheckSquare className="h-5 w-5 text-primary fill-surface" /> : <Square className="h-5 w-5" />}
                 </button>
               </div>
-              <div className="aspect-square bg-muted overflow-hidden">
-                <img src={product.image} alt={product.title} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              <div className="relative aspect-square bg-muted overflow-hidden">
+                <Image
+                  src={product.image}
+                  alt={product.title}
+                  fill
+                  className="object-cover group-hover:scale-105 transition-transform duration-500"
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 33vw, 25vw"
+                />
               </div>
               <div className="p-4">
                 <div className="flex justify-between items-start mb-2">
@@ -266,8 +273,14 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-md bg-muted overflow-hidden">
-                          <img src={product.image} alt={product.title} className="h-full w-full object-cover" />
+                        <div className="relative h-10 w-10 rounded-md bg-muted overflow-hidden">
+                          <Image
+                            src={product.image}
+                            alt={product.title}
+                            fill
+                            className="object-cover"
+                            sizes="40px"
+                          />
                         </div>
                         <span className="font-medium">{product.title}</span>
                       </div>
@@ -282,7 +295,7 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => router.push(`/admin/products/${product.id}/edit`)}>
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-error hover:text-error hover:bg-error/10">
@@ -302,7 +315,13 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
               <div key={product.id} className={`bg-surface rounded-lg border border-border-light p-4 shadow-sm ${selectedProducts.includes(product.id) ? 'ring-2 ring-primary/20' : ''}`}>
                 <div className="flex gap-4 mb-3">
                   <div className="relative h-16 w-16 rounded-md bg-muted overflow-hidden flex-shrink-0">
-                    <img src={product.image} alt={product.title} className="h-full w-full object-cover" />
+                    <Image
+                      src={product.image}
+                      alt={product.title}
+                      fill
+                      className="object-cover"
+                      sizes="64px"
+                    />
                     <button
                       onClick={() => toggleSelect(product.id)}
                       className="absolute top-1 left-1 bg-black/20 rounded p-0.5"
@@ -325,7 +344,7 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
                     Stock: <span className={`${product.stock < 5 ? 'text-error font-bold' : ''}`}>{product.stock}</span>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="h-8">
+                    <Button variant="outline" size="sm" className="h-8" onClick={() => router.push(`/admin/products/${product.id}/edit`)}>
                       <Edit className="h-3 w-3 mr-1" /> Edit
                     </Button>
                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-error">

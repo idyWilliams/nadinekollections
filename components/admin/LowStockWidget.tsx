@@ -2,6 +2,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { AlertTriangle, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,11 +41,13 @@ export function LowStockWidget({ items }: LowStockWidgetProps) {
           <div className="space-y-4">
             {items.map((item) => (
               <div key={item.id} className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-md bg-muted overflow-hidden flex-shrink-0">
-                  <img
+                <div className="relative h-10 w-10 rounded-md bg-muted overflow-hidden flex-shrink-0">
+                  <Image
                     src={item.image}
                     alt={item.title}
-                    className="h-full w-full object-cover"
+                    fill
+                    className="object-cover"
+                    sizes="40px"
                   />
                 </div>
                 <div className="flex-1 min-w-0">

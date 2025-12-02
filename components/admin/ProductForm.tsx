@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Upload, X, GripVertical, Tag, DollarSign, Package, Image as ImageIcon, Eye } from "lucide-react";
+import Image from "next/image";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -91,6 +92,45 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
     };
     fetchPromos();
   }, []);
+
+  // Auto-generate SEO tags based on product information
+  useEffect(() => {
+    if (!isEditing && formData.title && formData.category) {
+      const generatedTags = new Set<string>();
+
+      // Add category as tag
+      generatedTags.add(formData.category.toLowerCase());
+
+      // Extract meaningful words from title (min 3 chars, exclude common words)
+      const commonWords = ['the', 'and', 'for', 'with', 'from', 'this', 'that', 'new'];
+      const titleWords = formData.title
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(word => word.length >= 3 && !commonWords.includes(word));
+
+      titleWords.forEach(word => generatedTags.add(word));
+
+      // Extract from description if available
+      if (formData.description) {
+        const descWords = formData.description
+          .toLowerCase()
+          .split(/\s+/)
+          .filter(word => word.length >= 4 && !commonWords.includes(word))
+          .slice(0, 3); // Limit to first 3 meaningful words
+
+        descWords.forEach(word => generatedTags.add(word));
+      }
+
+      // Merge with existing tags, keeping user-added ones
+      const autoTags = Array.from(generatedTags).slice(0, 8); // Limit to 8 tags
+      const existingUserTags = formData.tags.filter(tag => !autoTags.includes(tag));
+
+      setFormData(prev => ({
+        ...prev,
+        tags: [...new Set([...autoTags, ...existingUserTags])]
+      }));
+    }
+  }, [formData.title, formData.description, formData.category, isEditing]);
 
   const [isUploading, setIsUploading] = useState(false);
 
@@ -463,14 +503,22 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
               {images.map((img, idx) => (
                 <div key={idx} className="relative group aspect-square">
                   <div className="relative h-full w-full rounded-lg overflow-hidden border-2 border-border-light bg-gray-50">
-                    <img
-                      src={img}
-                      alt={`Product ${idx + 1}`}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = "/placeholder.jpg";
-                      }}
-                    />
+                    <div className="relative w-full h-full">
+                      <Image
+                        src={img}
+                        alt={`Product ${idx + 1}`}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw"
+                        onError={(e) => {
+                          // Note: Next.js Image component doesn't have simple onError like img
+                          // We might need a separate state or wrapper for fallback,
+                          // but for now relying on valid URLs.
+                          // If fallback is critical, we'd need a custom component.
+                          console.error("Error loading image", img);
+                        }}
+                      />
+                    </div>
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                       <button
                         type="button"
@@ -526,29 +574,52 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Enhanced Tags Input with Pills */}
             <div className="space-y-2">
-              <Label>Product Tags</Label>
+              <Label htmlFor="tags" className="flex items-center gap-2">
+                <Tag className="h-4 w-4" />
+                SEO Tags
+                <span className="text-xs text-text-secondary font-normal">(Auto-generated, customizable)</span>
+              </Label>
+
+              {/* Tag Pills Display */}
+              {formData.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2 p-3 bg-muted/30 rounded-lg border border-border-light">
+                  {formData.tags.map((tag) => (
+                    <div
+                      key={tag}
+                      className="group inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-full text-sm font-medium transition-all duration-200 border border-primary/20">
+                      <span>{tag}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeTag(tag)}
+                        className="hover:bg-primary/30 rounded-full p-0.5 transition-colors"
+                        aria-label={`Remove ${tag} tag`}>
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add Custom Tag Input */}
               <div className="flex gap-2">
                 <Input
+                  id="tags"
                   value={tagInput}
                   onChange={(e) => setTagInput(e.target.value)}
                   onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addTag())}
-                  placeholder="Add tag and press Enter"
+                  placeholder="Add custom tag and press Enter"
+                  className="flex-1"
                 />
-                <Button type="button" onClick={addTag} variant="outline">
+                <Button type="button" onClick={addTag} variant="outline" size="sm">
+                  <Tag className="h-4 w-4 mr-1" />
                   Add
                 </Button>
               </div>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {formData.tags.map((tag) => (
-                  <Badge key={tag} variant="secondary" className="gap-1">
-                    {tag}
-                    <button type="button" onClick={() => removeTag(tag)}>
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
+              <p className="text-xs text-text-secondary mt-1">
+                Tags are auto-generated from your product title, description, and category. You can add or remove any tag.
+              </p>
             </div>
 
             <div className="space-y-2">

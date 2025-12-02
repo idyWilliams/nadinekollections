@@ -10,9 +10,10 @@ interface SearchInputProps {
   className?: string;
   placeholder?: string;
   onSearch?: () => void;
+  autoFocus?: boolean;
 }
 
-export function SearchInput({ className, placeholder = "Search products...", onSearch }: SearchInputProps) {
+export function SearchInput({ className, placeholder = "Search products...", onSearch, autoFocus }: SearchInputProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
@@ -40,6 +41,7 @@ export function SearchInput({ className, placeholder = "Search products...", onS
         onChange={(e) => setQuery(e.target.value)}
         placeholder={placeholder}
         className="pl-10 h-10 bg-background border-transparent focus:bg-surface w-full"
+        autoFocus={autoFocus}
       />
     </form>
   );

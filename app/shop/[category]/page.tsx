@@ -152,8 +152,16 @@ export default async function CategoryPage({
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 md:px-6 py-8 md:py-12">
-        <div className="flex flex-col md:flex-row gap-8 items-start">
+      <main className="container mx-auto px-4 md:px-6 py-6 md:py-12">
+        {/* Mobile Header with Search */}
+        <div className="md:hidden mb-6 space-y-4">
+          <div>
+            <h1 className="text-2xl font-bold mb-1">{searchQuery ? `Search: "${searchQuery}"` : categoryName}</h1>
+            <p className="text-sm text-text-secondary">{totalItems} products found</p>
+          </div>
+        </div>
+
+        <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
           {/* Sidebar / Filters */}
           <ProductFilters
             categoryName={categoryName}

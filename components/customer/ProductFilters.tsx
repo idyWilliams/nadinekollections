@@ -24,7 +24,7 @@ export function ProductFilters({
 
   const FilterContent = () => (
     <>
-      <div>
+      <div className="hidden md:block">
         <h1 className="text-3xl font-bold mb-2">{categoryName}</h1>
         <p className="text-text-secondary">{totalItems} products found</p>
       </div>
@@ -86,17 +86,17 @@ export function ProductFilters({
   return (
     <>
       {/* Mobile Filter Toggle */}
-      <div className="md:hidden mb-6">
-        <Button
-          variant="outline"
-          className="w-full flex items-center justify-between"
-          onClick={() => setIsOpen(true)}
-        >
-          <span className="flex items-center gap-2">
+      <div className="md:hidden mb-4">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl border-border-light hover:bg-surface/80 transition-all"
+            onClick={() => setIsOpen(true)}
+          >
             <Filter className="h-4 w-4" />
-            Filters & Sort
-          </span>
-        </Button>
+            <span className="font-medium">Filters & Sort</span>
+          </Button>
+        </div>
       </div>
 
       {/* Mobile Sheet */}

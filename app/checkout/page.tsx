@@ -8,6 +8,7 @@ import { formatCurrency } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { CheckCircle, CreditCard, MapPin, Truck, Tag, X } from "lucide-react";
+import Image from "next/image";
 
 export default function CheckoutPage() {
   const { items, subtotal, clearCart } = useCartStore();
@@ -266,11 +267,15 @@ export default function CheckoutPage() {
             <div className="space-y-4 mb-6">
               {items.map((item) => (
                 <div key={`${item.id}-${item.variantId}`} className="flex gap-4">
-                  <img
-                    src={item.image}
-                    alt={item.title}
-                    className="w-20 h-20 object-cover rounded-lg"
-                  />
+                  <div className="relative w-20 h-20 rounded-lg overflow-hidden">
+                    <Image
+                      src={item.image}
+                      alt={item.title}
+                      fill
+                      className="object-cover"
+                      sizes="80px"
+                    />
+                  </div>
                   <div className="flex-1">
                     <h4 className="font-medium">{item.title}</h4>
                     {item.variantName && <p className="text-sm text-text-secondary">{item.variantName}</p>}

@@ -2,11 +2,12 @@
 
 import { ProductForm } from "@/components/admin/ProductForm";
 import { createClient } from "@/lib/supabase/client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, use } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
-export default function EditProductPage({ params }: { params: { id: string } }) {
+export default function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const [product, setProduct] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -16,7 +17,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
       const { data, error } = await supabase
         .from("products")
         .select("*")
-        .eq("id", params.id)
+        .eq("id", id)
         .single();
 
       if (error) {
@@ -29,7 +30,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
     };
 
     fetchProduct();
-  }, [params.id]);
+  }, [id]);
 
   if (isLoading) {
     return (

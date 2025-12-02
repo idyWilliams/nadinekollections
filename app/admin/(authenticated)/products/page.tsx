@@ -16,8 +16,9 @@ export default async function AdminProductsPage() {
     category: Array.isArray(product.category) ? product.category[0] : product.category, // Handle array or string
     price: product.price,
     stock: product.stock,
-    image: product.primary_image || '/placeholder.png',
-    status: product.is_active ? 'Active' : 'Inactive'
+    image: product.primary_image || product.images?.[0] || '/placeholder.png',
+    status: product.is_active ? 'Active' : 'Inactive',
+    is_active: product.is_active
   })) || [];
 
   return (
