@@ -1,11 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
-import { Package, ShoppingCart, ArrowUpRight, ArrowDownRight, DollarSign, AlertTriangle } from "lucide-react";
+import { Package, ShoppingCart, ArrowUpRight, ArrowDownRight, DollarSign, AlertTriangle, MapPin } from "lucide-react";
 import { RevenueChart } from "@/components/admin/RevenueChart";
 import { CategoryPieChart } from "@/components/admin/CategoryPieChart";
 import { RecentOrdersTable } from "@/components/admin/RecentOrdersTable";
 import { LowStockWidget } from "@/components/admin/LowStockWidget";
+import { OrderMap } from "@/components/admin/OrderMap";
 
 export default async function AdminDashboard() {
   const supabase = await createClient();
@@ -45,7 +46,7 @@ export default async function AdminDashboard() {
       .select("*, profiles(full_name), order_items(count)")
       .order("created_at", { ascending: false })
       .limit(10),
-    // Category Sales Data (All time or last 30 days? Let's do all time for now to ensure data)
+    // Category Sales Data
     supabase.from("order_items").select("quantity, products(category)")
   ]);
 
@@ -80,7 +81,6 @@ export default async function AdminDashboard() {
   const categorySales = new Map<string, number>();
   orderItemsRaw?.forEach((item: any) => {
     const categories = item.products?.category || [];
-    // If product has multiple categories, attribute sale to all of them (or just first? Let's do all)
     categories.forEach((cat: string) => {
       categorySales.set(cat, (categorySales.get(cat) || 0) + (item.quantity || 0));
     });
@@ -116,11 +116,22 @@ export default async function AdminDashboard() {
     image: item.primary_image || '/placeholder.png'
   })) || [];
 
+  // Mock Map Data (Since we don't have real address data yet)
+  const mapData = [
+    { state: "Lagos", value: 120 },
+    { state: "Abuja", value: 80 },
+    { state: "Rivers", value: 45 },
+    { state: "Kano", value: 30 },
+    { state: "Oyo", value: 25 },
+    { state: "Enugu", value: 20 },
+    { state: "Kaduna", value: 15 },
+  ];
+
   // Stats Array
   const stats = [
     {
       title: "Total Revenue (7d)",
-      value: formatCurrency(totalRevenue),
+      value: formatCurrency(totalRevenue, "NGN"),
       change: "Last 7 days",
       icon: DollarSign,
       trend: "neutral",
@@ -169,7 +180,7 @@ export default async function AdminDashboard() {
           const Icon = stat.icon;
           const TrendIcon = stat.trend === "up" ? ArrowUpRight : ArrowDownRight;
           return (
-            <Card key={stat.title} className="card-hover border-none shadow-card">
+            <Card key={stat.title} className="card-hover border shadow-card">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className={`p-3 rounded-xl ${stat.bg} ${stat.color}`}>
@@ -195,7 +206,7 @@ export default async function AdminDashboard() {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Revenue Chart (2/3 width) */}
-        <Card className="lg:col-span-2 border-none shadow-card">
+        <Card className="lg:col-span-2 border shadow-card">
           <CardHeader>
             <CardTitle>Revenue Overview (Last 7 Days)</CardTitle>
           </CardHeader>
@@ -205,7 +216,7 @@ export default async function AdminDashboard() {
         </Card>
 
         {/* Category Chart (1/3 width) */}
-        <Card className="border-none shadow-card">
+        <Card className="border shadow-card">
           <CardHeader>
             <CardTitle>Sales by Category</CardTitle>
           </CardHeader>
@@ -221,23 +232,35 @@ export default async function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Bottom Row: Low Stock & Recent Orders */}
+      {/* Map & Recent Orders */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Order Map (2/3 width) */}
+        <Card className="lg:col-span-2 border shadow-card">
+          <CardHeader>
+             <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5" /> Customer Locations
+             </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <OrderMap data={mapData} />
+          </CardContent>
+        </Card>
+
         {/* Low Stock Widget (1/3 width) */}
         <div className="lg:col-span-1">
           <LowStockWidget items={lowStockItems} />
         </div>
-
-        {/* Recent Orders Table (2/3 width) */}
-        <Card className="lg:col-span-2 border-none shadow-card">
-          <CardHeader>
-            <CardTitle>Recent Orders</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <RecentOrdersTable orders={recentOrders} />
-          </CardContent>
-        </Card>
       </div>
+
+      {/* Recent Orders Table (Full width) */}
+      <Card className="border shadow-card">
+        <CardHeader>
+          <CardTitle>Recent Orders</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <RecentOrdersTable orders={recentOrders} />
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -35,7 +35,7 @@ export function CategoryPieChart({ data }: CategoryPieChartProps) {
           <Legend
             verticalAlign="bottom"
             height={36}
-            formatter={(value, entry: any) => (
+            formatter={(value) => (
               <span className="text-sm text-text-primary ml-1">{value}</span>
             )}
           />
