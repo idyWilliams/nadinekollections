@@ -13,13 +13,13 @@ interface Product {
   category: string[];
 }
 
-interface Props {
+interface TryOnCanvasProps {
   image: string | null;
   isGenerating: boolean;
-  products: Product[];
+  activeItem: Product | null;
 }
 
-export function TryOnCanvas({ image, isGenerating, products }: Props) {
+export function TryOnCanvas({ image, isGenerating }: TryOnCanvasProps) {
   const handleDownload = async () => {
     if (!image) return;
 

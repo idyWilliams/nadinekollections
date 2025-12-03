@@ -34,7 +34,6 @@ export function ProductCard({
   image,
   category,
   isNew,
-  isSale,
   stock,
 }: ProductCardProps) {
   const { addItem } = useCartStore();

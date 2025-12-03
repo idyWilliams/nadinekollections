@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { createClient } from "@/lib/supabase/client";
-import { Save, UserPlus, Shield, CreditCard, Bell, Store } from "lucide-react";
+import { UserPlus, Shield, CreditCard, Bell, Store } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { useCallback } from "react";
 
 interface AdminProfile {
   id: string;
@@ -47,16 +48,16 @@ export function SettingsPanel() {
 
   const supabase = createClient();
 
-  const fetchAdmins = async () => {
+  const fetchAdmins = useCallback(async () => {
     const { data } = await supabase
       .from("profiles")
       .select("*")
       .eq("role", "admin")
       .is("deleted_at", null); // Only show non-deleted admins
     if (data) setAdmins(data as AdminProfile[]);
-  };
+  }, [supabase]);
 
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
     const { data } = await supabase
         .from("store_settings")
         .select("*")
@@ -70,12 +71,12 @@ export function SettingsPanel() {
             currency: data.currency || prev.currency,
         }));
     }
-  };
+  }, [supabase]);
 
   useEffect(() => {
     fetchAdmins();
     fetchSettings();
-  }, []);
+  }, [fetchAdmins, fetchSettings]);
 
   const handleSaveGeneral = async () => {
     setLoading(true);
