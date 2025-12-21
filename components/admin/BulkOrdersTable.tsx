@@ -27,6 +27,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+import { InfoModal } from "@/components/ui/info-modal";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface Order {
   id: string;
@@ -45,9 +49,57 @@ export function BulkOrdersTable({ orders: initialOrders }: BulkOrdersTableProps)
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [sortConfig, setSortConfig] = useState<{ key: keyof Order; direction: 'asc' | 'desc' } | null>(null);
+  const supabase = createClient();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+
+  // Modal State
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean;
+    type: "success" | "error" | "info";
+    title: string;
+    message: string;
+  }>({
+    isOpen: false,
+    type: "info",
+    title: "",
+    message: "",
+  });
+
+  // React Query for Orders
+  const { data: orders = initialOrders } = useQuery({
+    queryKey: ['admin-orders'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id, created_at, total_amount, status, user_id, customer_name, profiles(full_name)")
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+
+      return data.map(order => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const profile = Array.isArray(order.profiles) ? order.profiles[0] : order.profiles;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const fullName = (profile as any)?.full_name || order.customer_name || "Guest User";
+
+        return {
+          id: order.id,
+          customer: fullName,
+          total: order.total_amount || 0,
+          status: order.status || "Pending",
+          date: new Date(order.created_at).toLocaleDateString(),
+          items: 1
+        };
+      });
+    },
+    initialData: initialOrders,
+    staleTime: 1000 * 60, // 1 minute
+  });
 
   // Filter and Sort Logic
-  const filteredOrders = initialOrders.filter(order =>
+  const filteredOrders = orders.filter(order =>
     order.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
     order.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -82,8 +134,54 @@ export function BulkOrdersTable({ orders: initialOrders }: BulkOrdersTableProps)
     }
   };
 
+  const handleMarkShipped = async (orderId: string) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: 'shipped' })
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      setModalState({
+        isOpen: true,
+        type: "success",
+        title: "Order Updated",
+        message: "Order has been marked as shipped."
+      });
+
+      // Invalidate query to refresh data seamlessly
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+    } catch (error) {
+      console.error("Error updating order:", error);
+      setModalState({
+        isOpen: true,
+        type: "error",
+        title: "Update Failed",
+        message: "Failed to update order status."
+      });
+    }
+  };
+
+  const handleViewDetails = (orderId: string) => {
+    router.push(`/admin/orders/${orderId}`);
+  };
+
+  const handlePrintLabel = (orderId: string) => {
+    // In a real app, this would generate a PDF or open a print dialog
+    window.print();
+  };
+
   return (
     <div className="space-y-4">
+      <InfoModal
+        isOpen={modalState.isOpen}
+        onClose={() => setModalState({ ...modalState, isOpen: false })}
+        type={modalState.type}
+        title={modalState.title}
+        message={modalState.message}
+      />
+
       {/* Actions Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="relative flex-1 w-full sm:max-w-sm">
@@ -135,9 +233,9 @@ export function BulkOrdersTable({ orders: initialOrders }: BulkOrdersTableProps)
             <thead className="bg-muted/50 [&_tr]:border-b">
               <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
                 <th className="w-10 px-4 py-3 align-middle">
-                   <button onClick={toggleSelectAll}>
-                      {selectedOrders.length === filteredOrders.length && filteredOrders.length > 0 ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4" />}
-                   </button>
+                  <button onClick={toggleSelectAll}>
+                    {selectedOrders.length === filteredOrders.length && filteredOrders.length > 0 ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4" />}
+                  </button>
                 </th>
                 <th className="h-12 px-4 align-middle font-medium text-muted-foreground cursor-pointer hover:text-primary" onClick={() => requestSort('id')}>
                   Order ID <ArrowUpDown className="inline h-3 w-3 ml-1" />
@@ -171,12 +269,11 @@ export function BulkOrdersTable({ orders: initialOrders }: BulkOrdersTableProps)
                   <td className="p-4 align-middle">{order.date}</td>
                   <td className="p-4 align-middle">{order.items}</td>
                   <td className="p-4 align-middle">
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors ${
-                      order.status === "Delivered" ? "bg-success/10 text-success" :
-                      order.status === "Shipped" ? "bg-blue-100 text-blue-800" :
-                      order.status === "Processing" ? "bg-yellow-100 text-yellow-800" :
-                      "bg-gray-100 text-gray-800"
-                    }`}>
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors ${order.status === "Delivered" || order.status === "delivered" ? "bg-success/10 text-success" :
+                        order.status === "Shipped" || order.status === "shipped" ? "bg-blue-100 text-blue-800" :
+                          order.status === "Processing" || order.status === "processing" ? "bg-yellow-100 text-yellow-800" :
+                            "bg-gray-100 text-gray-800"
+                      }`}>
                       {order.status}
                     </span>
                   </td>
@@ -191,18 +288,18 @@ export function BulkOrdersTable({ orders: initialOrders }: BulkOrdersTableProps)
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>
-                            <Eye className="mr-2 h-4 w-4" /> View Details
+                        <DropdownMenuItem onClick={() => handleViewDetails(order.id)}>
+                          <Eye className="mr-2 h-4 w-4" /> View Details
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
-                            <Truck className="mr-2 h-4 w-4" /> Mark as Shipped
+                        <DropdownMenuItem onClick={() => handleMarkShipped(order.id)}>
+                          <Truck className="mr-2 h-4 w-4" /> Mark as Shipped
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
-                            <Printer className="mr-2 h-4 w-4" /> Print Label
+                        <DropdownMenuItem onClick={() => handlePrintLabel(order.id)}>
+                          <Printer className="mr-2 h-4 w-4" /> Print Label
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-error">
-                            <RotateCcw className="mr-2 h-4 w-4" /> Refund Order
+                          <RotateCcw className="mr-2 h-4 w-4" /> Refund Order
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -228,12 +325,11 @@ export function BulkOrdersTable({ orders: initialOrders }: BulkOrdersTableProps)
                   <p className="font-medium">{order.id}</p>
                 </div>
               </div>
-              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                order.status === "Delivered" ? "bg-success/10 text-success" :
-                order.status === "Shipped" ? "bg-blue-100 text-blue-800" :
-                order.status === "Processing" ? "bg-yellow-100 text-yellow-800" :
-                "bg-gray-100 text-gray-800"
-              }`}>
+              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${order.status === "Delivered" || order.status === "delivered" ? "bg-success/10 text-success" :
+                  order.status === "Shipped" || order.status === "shipped" ? "bg-blue-100 text-blue-800" :
+                    order.status === "Processing" || order.status === "processing" ? "bg-yellow-100 text-yellow-800" :
+                      "bg-gray-100 text-gray-800"
+                }`}>
                 {order.status}
               </span>
             </div>
@@ -258,7 +354,7 @@ export function BulkOrdersTable({ orders: initialOrders }: BulkOrdersTableProps)
             </div>
 
             <div className="flex justify-end gap-2 pt-3 border-t border-border-light pl-8">
-              <Button variant="outline" size="sm" className="h-8">
+              <Button variant="outline" size="sm" className="h-8" onClick={() => handleViewDetails(order.id)}>
                 <Eye className="h-3 w-3 mr-1" /> View
               </Button>
               <DropdownMenu>
@@ -268,15 +364,15 @@ export function BulkOrdersTable({ orders: initialOrders }: BulkOrdersTableProps)
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem>
-                      <Truck className="mr-2 h-4 w-4" /> Mark as Shipped
+                  <DropdownMenuItem onClick={() => handleMarkShipped(order.id)}>
+                    <Truck className="mr-2 h-4 w-4" /> Mark as Shipped
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
-                      <Printer className="mr-2 h-4 w-4" /> Print Label
+                  <DropdownMenuItem onClick={() => handlePrintLabel(order.id)}>
+                    <Printer className="mr-2 h-4 w-4" /> Print Label
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem className="text-error">
-                      <RotateCcw className="mr-2 h-4 w-4" /> Refund Order
+                    <RotateCcw className="mr-2 h-4 w-4" /> Refund Order
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

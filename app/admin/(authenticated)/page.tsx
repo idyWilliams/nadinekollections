@@ -6,54 +6,144 @@ import { CategoryPieChart } from "@/components/admin/CategoryPieChart";
 import { RecentOrdersTable } from "@/components/admin/RecentOrdersTable";
 import { LowStockWidget } from "@/components/admin/LowStockWidget";
 import { OrderMap } from "@/components/admin/OrderMap";
+import { createClient } from "@/lib/supabase/server";
+
+export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
-  // Mock Data for Dashboard
-  const totalRevenue = 4500000;
-  const ordersTodayCount = 25;
-  const totalProductsCount = 150;
-  const lowStockCount = 8;
+  const supabase = await createClient();
 
-  const chartRevenueData = [
-    { date: "Mon", value: 150000 },
-    { date: "Tue", value: 230000 },
-    { date: "Wed", value: 180000 },
-    { date: "Thu", value: 320000 },
-    { date: "Fri", value: 290000 },
-    { date: "Sat", value: 450000 },
-    { date: "Sun", value: 380000 },
-  ];
+  // 1. Fetch Stats Data
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayISO = today.toISOString();
 
-  const categoryData = [
-    { name: "Women", value: 45, color: "#D4AF37" },
-    { name: "Men", value: 30, color: "#000000" },
-    { name: "Kids", value: 15, color: "#1E40AF" },
-    { name: "Accessories", value: 10, color: "#9CA3AF" },
-  ];
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const sevenDaysAgoISO = sevenDaysAgo.toISOString();
 
-  const recentOrders = [
-    { id: "ORD-7829", customer: "Amara Okeke", total: 45000, status: "Pending", date: "2024-03-15", items: 3 },
-    { id: "ORD-7828", customer: "John Doe", total: 12500, status: "Processing", date: "2024-03-14", items: 1 },
-    { id: "ORD-7827", customer: "Chioma Adebayo", total: 89000, status: "Shipped", date: "2024-03-14", items: 5 },
-    { id: "ORD-7826", customer: "Sarah Williams", total: 32000, status: "Delivered", date: "2024-03-13", items: 2 },
-    { id: "ORD-7825", customer: "Chris Evans", total: 15000, status: "Delivered", date: "2024-03-12", items: 1 },
-  ];
+  // Parallelize queries for performance
+  const [
+    { count: ordersTodayCount },
+    { count: totalProductsCount },
+    { count: lowStockCount },
+    { data: revenueData },
+    { data: recentOrdersData },
+    { data: categoryDataRaw },
+    { data: mapDataRaw }
+  ] = await Promise.all([
+    // Orders Today
+    supabase.from("orders").select("*", { count: "exact", head: true }).gte("created_at", todayISO),
 
-  const lowStockItems = [
-    { id: "1", title: "Gold Plated Necklace", stock: 2, image: "/products/accessories-1.png" },
-    { id: "2", title: "Silk Scarf", stock: 4, image: "/products/accessories-2.png" },
-    { id: "3", title: "Leather Belt", stock: 3, image: "/products/men-1.png" },
-  ];
+    // Active Products
+    supabase.from("products").select("*", { count: "exact", head: true }).eq("is_active", true),
 
-  const mapData = [
-    { state: "Lagos", value: 120 },
-    { state: "Abuja", value: 80 },
-    { state: "Rivers", value: 45 },
-    { state: "Kano", value: 30 },
-    { state: "Oyo", value: 25 },
-    { state: "Enugu", value: 20 },
-    { state: "Kaduna", value: 15 },
-  ];
+    // Low Stock Variants (assuming threshold < 5)
+    supabase.from("product_variants").select("*", { count: "exact", head: true }).lt("inventory_count", 5),
+
+    // Revenue Data (Last 7 Days) - Fetching paid orders
+    supabase
+      .from("orders")
+      .select("total_amount, created_at")
+      .eq("payment_status", "paid")
+      .gte("created_at", sevenDaysAgoISO),
+
+    // Recent Orders
+    supabase
+      .from("orders")
+      .select("id, created_at, total_amount, status, user_id, customer_name, profiles(full_name)")
+      .order("created_at", { ascending: false })
+      .limit(5),
+
+    // Category Data (using products table)
+    supabase.from("products").select("category"),
+
+    // Map Data (using shipping_address from orders)
+    supabase.from("orders").select("shipping_address")
+  ]);
+
+  // Process Revenue Data
+  const totalRevenue = revenueData?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
+
+  // Process Chart Data (Daily Revenue)
+  const chartRevenueData = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i)); // Go back 6 days to today
+    const dateStr = d.toISOString().split('T')[0];
+    const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+
+    const dailyTotal = revenueData
+      ?.filter(order => order.created_at.startsWith(dateStr))
+      .reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
+
+    return { date: dayName, value: dailyTotal };
+  });
+
+  // Process Category Data
+  const categoryCounts: Record<string, number> = {};
+  categoryDataRaw?.forEach(product => {
+    if (Array.isArray(product.category)) {
+      product.category.forEach((cat: string) => {
+        categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+      });
+    }
+  });
+
+  const categoryData = Object.entries(categoryCounts).map(([name, value], index) => {
+    const colors = ["#D4AF37", "#000000", "#1E40AF", "#9CA3AF", "#10B981", "#F59E0B"];
+    return { name, value, color: colors[index % colors.length] };
+  });
+
+  // Process Recent Orders
+  const recentOrders = recentOrdersData?.map(order => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const profile = Array.isArray(order.profiles) ? order.profiles[0] : order.profiles;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fullName = (profile as any)?.full_name || order.customer_name || "Guest User";
+
+    return {
+      id: order.id,
+      customer: fullName,
+      total: order.total_amount || 0,
+      status: order.status || "Pending",
+      date: new Date(order.created_at).toLocaleDateString(),
+      items: 1 // Placeholder
+    };
+  }) || [];
+
+  // Process Map Data (State distribution)
+  const stateCounts: Record<string, number> = {};
+  mapDataRaw?.forEach(order => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const state = (order.shipping_address as any)?.state;
+    if (state) {
+      // Simple normalization
+      const normalizedState = state.trim().replace(/ state$/i, "");
+      stateCounts[normalizedState] = (stateCounts[normalizedState] || 0) + 1;
+    }
+  });
+
+  const mapData = Object.entries(stateCounts)
+    .map(([state, value]) => ({ state, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10); // Top 10 states
+
+  // Fetch Low Stock Items Details (Top 5)
+  const { data: lowStockItemsData } = await supabase
+    .from("product_variants")
+    .select("id, name, inventory_count, products(title, primary_image)")
+    .lt("inventory_count", 5)
+    .limit(5);
+
+  const lowStockItems = lowStockItemsData?.map(item => ({
+    id: item.id,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    title: `${(item.products as any)?.title} - ${item.name}`,
+    stock: item.inventory_count,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    image: (item.products as any)?.primary_image || "/placeholder.png"
+  })) || [];
+
 
   // Stats Array
   const stats = [
@@ -62,22 +152,22 @@ export default async function AdminDashboard() {
       value: formatCurrency(totalRevenue, "NGN"),
       change: "Last 7 days",
       icon: DollarSign,
-      trend: "up",
+      trend: "up", // Dynamic trend calculation could be added here
       color: "text-primary",
       bg: "bg-primary/10",
     },
     {
       title: "Orders Today",
-      value: ordersTodayCount.toString(),
+      value: (ordersTodayCount || 0).toString(),
       change: "Daily count",
       icon: ShoppingCart,
-      trend: "up",
+      trend: "neutral",
       color: "text-blue-600",
       bg: "bg-blue-100",
     },
     {
       title: "Active Products",
-      value: totalProductsCount.toString(),
+      value: (totalProductsCount || 0).toString(),
       change: "In catalog",
       icon: Package,
       trend: "neutral",
@@ -86,10 +176,10 @@ export default async function AdminDashboard() {
     },
     {
       title: "Low Stock Alerts",
-      value: lowStockCount.toString(),
+      value: (lowStockCount || 0).toString(),
       change: "Action Needed",
       icon: AlertTriangle,
-      trend: "down",
+      trend: (lowStockCount || 0) > 0 ? "down" : "neutral",
       color: "text-red-600",
       bg: "bg-red-100",
     },
@@ -114,9 +204,8 @@ export default async function AdminDashboard() {
                   <div className={`p-3 rounded-xl ${stat.bg} ${stat.color}`}>
                     <Icon className="h-6 w-6" />
                   </div>
-                  <div className={`flex items-center gap-1 text-sm font-medium ${
-                    stat.trend === "up" ? "text-success" : stat.trend === "down" ? "text-error" : "text-text-muted"
-                  }`}>
+                  <div className={`flex items-center gap-1 text-sm font-medium ${stat.trend === "up" ? "text-success" : stat.trend === "down" ? "text-error" : "text-text-muted"
+                    }`}>
                     {stat.change}
                     {stat.trend !== "neutral" && <TrendIcon className="h-4 w-4" />}
                   </div>
@@ -149,7 +238,7 @@ export default async function AdminDashboard() {
             <CardTitle>Sales by Category</CardTitle>
           </CardHeader>
           <CardContent>
-             <CategoryPieChart data={categoryData} />
+            <CategoryPieChart data={categoryData} />
           </CardContent>
         </Card>
       </div>
@@ -159,9 +248,9 @@ export default async function AdminDashboard() {
         {/* Order Map (2/3 width) */}
         <Card className="lg:col-span-2 border shadow-card">
           <CardHeader>
-             <CardTitle className="flex items-center gap-2">
-                <MapPin className="h-5 w-5" /> Customer Locations
-             </CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5" /> Customer Locations
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <OrderMap data={mapData} />

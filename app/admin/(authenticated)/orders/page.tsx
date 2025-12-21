@@ -2,39 +2,39 @@
 import { createClient } from "@/lib/supabase/server";
 import { BulkOrdersTable } from "@/components/admin/BulkOrdersTable";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminOrdersPage() {
   const supabase = await createClient();
 
-  const { data: orders } = await supabase
+  const { data: orders, error } = await supabase
     .from("orders")
-    .select("id, created_at, total_amount, status, user_id, profiles(full_name)")
+    .select("id, created_at, total_amount, status, user_id, customer_name, profiles(full_name)")
     .order("created_at", { ascending: false })
     .limit(50);
 
+  if (error) {
+    console.error("Error fetching orders:", error);
+  } else {
+    console.log("Fetched orders:", orders?.length, orders);
+  }
+
   // Format orders for the table
   const formattedOrders = orders?.map(order => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const profile = Array.isArray(order.profiles) ? order.profiles[0] : order.profiles;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const fullName = (profile as any)?.full_name;
+    const fullName = (profile as any)?.full_name || order.customer_name || "Guest User";
 
     return {
       id: order.id,
-      customer: fullName || "Guest User",
+      customer: fullName,
       total: order.total_amount || 0,
       status: order.status || "Pending",
       date: new Date(order.created_at).toLocaleDateString(),
-      items: 1 // Placeholder as we're not fetching items count yet
+      items: 1 // Placeholder as we're not fetching items count yet, or we could join with order_items count
     };
   }) || [];
-
-  // If no orders, use mock data for demonstration
-  const displayOrders = formattedOrders.length > 0 ? formattedOrders : [
-    { id: "ORD-001", customer: "John Doe", total: 45000, status: "Pending", date: "2024-03-15", items: 3 },
-    { id: "ORD-002", customer: "Jane Smith", total: 12500, status: "Processing", date: "2024-03-14", items: 1 },
-    { id: "ORD-003", customer: "Mike Johnson", total: 89000, status: "Shipped", date: "2024-03-14", items: 5 },
-    { id: "ORD-004", customer: "Sarah Williams", total: 32000, status: "Delivered", date: "2024-03-13", items: 2 },
-    { id: "ORD-005", customer: "Chris Evans", total: 15000, status: "Delivered", date: "2024-03-12", items: 1 },
-  ];
 
   return (
     <div className="space-y-8">
@@ -45,7 +45,7 @@ export default async function AdminOrdersPage() {
         </div>
       </div>
 
-      <BulkOrdersTable orders={displayOrders} />
+      <BulkOrdersTable orders={formattedOrders} />
     </div>
   );
 }

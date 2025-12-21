@@ -18,24 +18,21 @@ interface OrderItem {
 }
 
 interface ShippingAddress {
-  firstName: string;
-  lastName: string;
-  address: string;
+  line1: string;
   city: string;
   state: string;
-  zipCode: string;
-  country: string;
-  phone: string;
+  zip: string;
 }
 
 interface Order {
   id: string;
   order_number: string;
   created_at: string;
-  order_status: string;
-  total: number;
-  subtotal: number;
-  shipping_fee: number;
+  status: string;
+  total_amount: number;
+  subtotal_amount: number;
+  shipping_cost: number;
+  tax_amount: number;
   discount_amount: number;
   items: string | OrderItem[];
   shipping_address: string | ShippingAddress;
@@ -65,7 +62,7 @@ export default function OrderDetailsPage() {
           .from('orders')
           .select(`
             *,
-            user:users(full_name, email, phone)
+            user:profiles(full_name, email, phone)
           `)
           .eq('id', id)
           .single();
@@ -119,15 +116,14 @@ export default function OrderDetailsPage() {
             </Link>
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-3">
-                Order {order.order_number}
-                <span className={`px-3 py-1 rounded-full text-sm font-medium border ${
-                  order.order_status === 'delivered' ? 'bg-success/10 text-success border-success/20' :
-                  order.order_status === 'processing' ? 'bg-warning/10 text-warning-foreground border-warning/20' :
-                  order.order_status === 'cancelled' || order.order_status === 'failed' ? 'bg-error/10 text-error border-error/20' :
-                  order.order_status === 'returned' ? 'bg-secondary/10 text-secondary-foreground border-secondary/20' :
-                  'bg-muted text-text-muted border-border-light'
-                }`}>
-                  {order.order_status.charAt(0).toUpperCase() + order.order_status.slice(1)}
+                Order {order.order_number || order.id.slice(0, 8)}
+                <span className={`px-3 py-1 rounded-full text-sm font-medium border ${order.status === 'delivered' ? 'bg-success/10 text-success border-success/20' :
+                    order.status === 'processing' ? 'bg-warning/10 text-warning-foreground border-warning/20' :
+                      order.status === 'cancelled' || order.status === 'failed' ? 'bg-error/10 text-error border-error/20' :
+                        order.status === 'returned' ? 'bg-secondary/10 text-secondary-foreground border-secondary/20' :
+                          'bg-muted text-text-muted border-border-light'
+                  }`}>
+                  {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                 </span>
               </h1>
               <p className="text-text-secondary">Placed on {new Date(order.created_at).toLocaleDateString()}</p>
@@ -184,11 +180,11 @@ export default function OrderDetailsPage() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-text-secondary">Subtotal</span>
-                  <span>{formatCurrency(order.subtotal)}</span>
+                  <span>{formatCurrency(order.subtotal_amount)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-text-secondary">Shipping</span>
-                  <span>{formatCurrency(order.shipping_fee)}</span>
+                  <span>{formatCurrency(order.shipping_cost || 0)}</span>
                 </div>
                 {order.discount_amount > 0 && (
                   <div className="flex justify-between text-success">
@@ -198,7 +194,7 @@ export default function OrderDetailsPage() {
                 )}
                 <div className="border-t border-border-light pt-4 flex justify-between font-bold text-lg">
                   <span>Total</span>
-                  <span>{formatCurrency(order.total)}</span>
+                  <span>{formatCurrency(order.total_amount)}</span>
                 </div>
               </div>
             </div>
@@ -210,9 +206,9 @@ export default function OrderDetailsPage() {
             <div className="bg-surface rounded-xl shadow-card border border-border-light p-6 space-y-4">
               <h2 className="font-bold">Customer</h2>
               <div className="space-y-1 text-sm">
-                <p className="font-medium">{order.user?.full_name || shippingAddress?.firstName + ' ' + shippingAddress?.lastName || 'Guest'}</p>
+                <p className="font-medium">{order.user?.full_name || (shippingAddress as any)?.firstName + ' ' + (shippingAddress as any)?.lastName || 'Guest'}</p>
                 <p className="text-text-secondary">{order.user?.email || order.guest_email}</p>
-                <p className="text-text-secondary">{order.user?.phone || shippingAddress?.phone}</p>
+                <p className="text-text-secondary">{order.user?.phone || (shippingAddress as any)?.phone}</p>
               </div>
             </div>
 
@@ -223,10 +219,10 @@ export default function OrderDetailsPage() {
                   <MapPin className="h-4 w-4" /> Shipping Address
                 </h2>
                 <div className="space-y-1 text-sm text-text-secondary">
-                  <p>{shippingAddress.address}</p>
+                  <p>{shippingAddress.line1 || (shippingAddress as any).address}</p>
                   <p>{shippingAddress.city}, {shippingAddress.state}</p>
-                  <p>{shippingAddress.zipCode}</p>
-                  <p>{shippingAddress.country}</p>
+                  <p>{shippingAddress.zip || (shippingAddress as any).zipCode}</p>
+                  <p>{(shippingAddress as any).country}</p>
                 </div>
               </div>
             )}
@@ -241,10 +237,9 @@ export default function OrderDetailsPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-text-secondary">Status</span>
-                  <span className={`font-medium capitalize ${
-                    order.payment_status === 'paid' ? 'text-success' :
-                    order.payment_status === 'failed' ? 'text-error' : 'text-warning-foreground'
-                  }`}>
+                  <span className={`font-medium capitalize ${order.payment_status === 'paid' ? 'text-success' :
+                      order.payment_status === 'failed' ? 'text-error' : 'text-warning-foreground'
+                    }`}>
                     {order.payment_status}
                   </span>
                 </div>

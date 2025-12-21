@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { CheckCircle, CreditCard, MapPin, Truck, Tag, X } from "lucide-react";
 import Image from "next/image";
 import { useAfricaPay } from "@use-africa-pay/core";
+import { InfoModal } from "@/components/ui/info-modal";
 
 export const dynamic = 'force-dynamic';
 
@@ -24,54 +25,21 @@ export default function CheckoutPage() {
   const supabase = createClient();
   const [createAccount, setCreateAccount] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
+  const [paymentSettings, setPaymentSettings] = useState<any>(null);
 
-  // const { pay, error } = useAfricaPay({
-  //   provider: 'paystack',
-  //   config: {
-  //     publicKey: 'pk_test_c122b9780327b705258e8af9e73e34401698af89',
-  //     amount: 5000, // 50.00 NGN
-  //     currency: 'NGN',
-  //     reference: 'ref_' + Date.now(),
-  //     user: {
-  //       email: 'user@example.com',
-  //     },
-  //     onSuccess: (res) => console.log(res),
-  //     onClose: () => console.log('Closed'),
-  //   },
-  // });
-  const { initializePayment, loading: isLoading, error } = useAfricaPay();
-
-  const handlePayment = () => {
-    initializePayment({
-      provider: 'paystack', // or 'flutterwave', 'monnify'
-      publicKey: 'pk_test_c122b9780327b705258e8af9e73e34401698af89',
-      amount: 500000, // Amount in kobo (or lowest denomination)
-      currency: 'NGN',
-      reference: 'unique_ref_' + Date.now(),
-      user: {
-        email: 'customer@example.com',
-        name: 'John Doe',
-        phonenumber: '08012345678',
-      },
-      metadata: {
-        custom_field: 'value',
-      },
-      onSuccess: (response) => {
-        console.log('Payment successful:', response);
-      },
-      onClose: () => {
-        console.log('Payment closed');
-      },
-    });
-  };
-  // Check if user is logged in
-  useEffect(() => {
-    const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setCurrentUser(user);
-    };
-    checkUser();
-  }, [supabase]);
+  // Modal State
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean;
+    type: "success" | "error" | "info";
+    title: string;
+    message: string;
+    onAction?: () => void;
+  }>({
+    isOpen: false,
+    type: "info",
+    title: "",
+    message: "",
+  });
 
   const [formData, setFormData] = useState({
     email: "",
@@ -93,6 +61,16 @@ export default function CheckoutPage() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const showModal = (type: "success" | "error" | "info", title: string, message: string, onAction?: () => void) => {
+    setModalState({
+      isOpen: true,
+      type,
+      title,
+      message,
+      onAction,
+    });
+  };
+
   const handleApplyPromo = async () => {
     if (!promoCode.trim()) return;
 
@@ -107,14 +85,14 @@ export default function CheckoutPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        alert(data.error || "Invalid promo code");
+        showModal("error", "Invalid Code", data.error || "Invalid promo code");
         return;
       }
 
       setAppliedPromo(data);
-      alert(`Promo code applied! You saved ${formatCurrency(data.discount)}`);
+      showModal("success", "Promo Applied", `You saved ${formatCurrency(data.discount)}`);
     } catch (error) {
-      alert("Failed to apply promo code");
+      showModal("error", "Error", "Failed to apply promo code");
     } finally {
       setPromoLoading(false);
     }
@@ -131,7 +109,44 @@ export default function CheckoutPage() {
     return sub - discount;
   };
 
-  const handleSubmitOrder = async () => {
+  useEffect(() => {
+    const fetchSettings = async () => {
+      const { data } = await supabase
+        .from("store_settings")
+        .select("*")
+        .single();
+
+      setPaymentSettings({
+        provider: data?.payment_provider || 'paystack',
+        paystackPublicKey: data?.paystack_public_key || process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
+        flutterwavePublicKey: data?.flutterwave_public_key || process.env.NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY,
+        monnifyPublicKey: data?.monnify_public_key || process.env.NEXT_PUBLIC_MONNIFY_API_KEY,
+        monnifyContractCode: data?.monnify_contract_code || process.env.NEXT_PUBLIC_MONNIFY_CONTRACT_CODE,
+        remitaPublicKey: data?.remita_public_key || process.env.NEXT_PUBLIC_REMITA_PUBLIC_KEY,
+        remitaMerchantId: data?.remita_merchant_id || process.env.NEXT_PUBLIC_REMITA_MERCHANT_ID,
+        remitaServiceTypeId: data?.remita_service_type_id || process.env.NEXT_PUBLIC_REMITA_SERVICE_TYPE_ID,
+      });
+    };
+    fetchSettings();
+  }, [supabase]);
+
+  // Check if user is logged in
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUser(user);
+    };
+    checkUser();
+  }, [supabase]);
+
+  const { initializePayment, loading: isLoading, error } = useAfricaPay();
+
+  const handleInitiatePayment = async () => {
+    if (!paymentSettings) {
+      showModal("error", "Configuration Error", "Payment settings not loaded. Please try again.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -153,7 +168,7 @@ export default function CheckoutPage() {
 
           if (signUpError) {
             console.error("Account creation error:", signUpError);
-            alert(`Account creation failed: ${signUpError.message}. Continuing as guest.`);
+            showModal("error", "Account Creation Failed", `${signUpError.message}. Continuing as guest.`);
           } else if (signUpData.user) {
             // Account created successfully, update user reference
             user = signUpData.user;
@@ -166,13 +181,22 @@ export default function CheckoutPage() {
       }
 
       // 1. Create Order in Supabase (Pending Payment)
+      const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const total = calculateTotal();
+      const subtotalAmount = subtotal();
+
       const orderData = {
         user_id: user?.id || null,
+        order_number: orderNumber,
         customer_name: `${formData.firstName} ${formData.lastName}`,
         customer_phone: formData.phone,
         guest_email: !user ? formData.email : null,
-        total_amount: calculateTotal(),
-        status: "Pending Payment",
+        subtotal_amount: subtotalAmount,
+        shipping_cost: 0, // Schema uses shipping_cost
+        tax_amount: 0, // Schema uses tax_amount
+        total_amount: total, // Schema uses total_amount
+        status: "pending", // Schema uses status, allows 'pending'
+        payment_status: "unpaid", // Schema constraint requires 'unpaid' (not 'pending')
         promotion_id: appliedPromo?.promo_id || null,
         shipping_address: {
           line1: formData.address,
@@ -196,33 +220,63 @@ export default function CheckoutPage() {
 
       if (orderError) {
         console.error("Order creation error:", orderError);
-        // Fallback for demo if DB fails
-        // throw new Error("Failed to create order");
+        showModal("error", "Order Failed", "Failed to create order. Please try again.");
+        setLoading(false);
+        return;
       }
 
-      // 2. Initialize Paystack
-      const response = await fetch("/api/paystack/initialize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      // 2. Initialize Payment with useAfricaPay
+      const config: any = {
+        provider: paymentSettings.provider,
+        amount: calculateTotal() * 100, // Amount in kobo
+        currency: 'NGN',
+        reference: order.id, // Use Order ID as reference
+        user: {
           email: formData.email,
-          amount: calculateTotal(),
-          orderId: order?.id || `DEMO-${Date.now()}`, // Fallback ID
-        }),
-      });
+          name: `${formData.firstName} ${formData.lastName}`.trim(),
+          phonenumber: formData.phone,
+        },
+        onSuccess: async (response: any) => {
+          console.log('Payment successful:', response);
 
-      const paystackData = await response.json();
+          // Update order status to Paid
+          await supabase
+            .from('orders')
+            .update({
+              status: 'Paid',
+              payment_ref: response.reference || response.transaction_id
+            })
+            .eq('id', order.id);
 
-      if (paystackData && paystackData.authorization_url) {
-        // Redirect to Paystack
-        window.location.href = paystackData.authorization_url;
-      } else {
-        throw new Error("Failed to initialize payment");
+          setStep(3); // Move to confirmation
+          clearCart();
+          setLoading(false);
+        },
+        onClose: () => {
+          console.log('Payment closed');
+          setLoading(false);
+        },
+      };
+
+      // Provider-specific config
+      if (paymentSettings.provider === 'paystack') {
+        config.publicKey = paymentSettings.paystackPublicKey;
+      } else if (paymentSettings.provider === 'flutterwave') {
+        config.publicKey = paymentSettings.flutterwavePublicKey;
+      } else if (paymentSettings.provider === 'monnify') {
+        config.publicKey = paymentSettings.monnifyPublicKey;
+        config.contractCode = paymentSettings.monnifyContractCode;
+      } else if (paymentSettings.provider === 'remita') {
+        config.publicKey = paymentSettings.remitaPublicKey;
+        config.merchantId = paymentSettings.remitaMerchantId;
+        config.serviceTypeId = paymentSettings.remitaServiceTypeId;
       }
+
+      initializePayment(config);
 
     } catch (error) {
       console.error("Checkout error:", error);
-      alert("Something went wrong. Please try again.");
+      showModal("error", "Error", "Something went wrong. Please try again.");
       setLoading(false);
     }
   };
@@ -240,6 +294,15 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-background py-12 px-4 md:px-8">
+      <InfoModal
+        isOpen={modalState.isOpen}
+        onClose={() => setModalState({ ...modalState, isOpen: false })}
+        type={modalState.type}
+        title={modalState.title}
+        message={modalState.message}
+        onAction={modalState.onAction}
+      />
+
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12">
         {/* Left Column: Forms */}
         <div className="space-y-8">
@@ -302,9 +365,7 @@ export default function CheckoutPage() {
                   <Input name="zip" value={formData.zip} onChange={handleInputChange} placeholder="10001" />
                 </div>
               </div>
-              <button onClick={handlePayment} disabled={loading}>
-                {isLoading ? 'Processing...' : 'Pay Now'}
-              </button>
+
 
               {!currentUser && (
                 <div className="space-y-4 p-4 bg-muted/20 rounded-lg border border-border-light">
@@ -346,7 +407,7 @@ export default function CheckoutPage() {
                   )}
                 </div>
               )}
-               <Button className="w-full btn-primary" onClick={() => setStep(2)}>
+              <Button className="w-full btn-primary" onClick={() => setStep(2)}>
                 Continue to Payment
               </Button>
             </div>
@@ -371,7 +432,7 @@ export default function CheckoutPage() {
                 <Button variant="outline" onClick={() => setStep(1)} className="flex-1">
                   Back
                 </Button>
-                <Button className="flex-1 btn-primary" onClick={handleSubmitOrder} disabled={loading}>
+                <Button className="flex-1 btn-primary" onClick={handleInitiatePayment} disabled={loading}>
                   {loading ? "Processing..." : `Pay ${formatCurrency(calculateTotal())}`}
                 </Button>
               </div>

@@ -34,6 +34,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface Product {
   id: string;
@@ -56,6 +57,33 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const router = useRouter();
   const supabase = createClient();
+  const queryClient = useQueryClient();
+
+  // React Query for Products
+  const { data: products = initialProducts } = useQuery({
+    queryKey: ['admin-products'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      return data.map(product => ({
+        id: product.id,
+        title: product.title,
+        category: Array.isArray(product.category) ? product.category[0] : product.category,
+        price: product.price,
+        stock: product.stock,
+        image: product.primary_image || product.images?.[0] || '/placeholder.png',
+        status: product.is_active ? 'Active' : 'Inactive',
+        is_active: product.is_active
+      }));
+    },
+    initialData: initialProducts,
+    staleTime: 1000 * 60, // 1 minute
+  });
 
   const toggleProductStatus = async (id: string, currentStatus: boolean) => {
     try {
@@ -67,7 +95,8 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
       if (error) throw error;
 
       toast.success(`Product ${!currentStatus ? "visible" : "hidden"} successfully`);
-      router.refresh();
+      // Invalidate query to refresh data seamlessly
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
     } catch (error) {
       console.error("Error updating product status:", error);
       toast.error("Failed to update product status");
@@ -86,7 +115,8 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
       if (error) throw error;
 
       toast.success("Product deleted successfully");
-      router.refresh();
+      // Invalidate query to refresh data seamlessly
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
     } catch (error) {
       console.error("Error deleting product:", error);
       toast.error("Failed to delete product");
@@ -94,7 +124,7 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
   };
 
   // Filter Logic
-  const filteredProducts = initialProducts.filter(product =>
+  const filteredProducts = products.filter(product =>
     product.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     product.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -181,7 +211,7 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
             <div key={product.id} className="group relative bg-surface rounded-xl border border-border-light shadow-sm hover:shadow-md transition-all overflow-hidden">
               <div className="absolute top-3 left-3 z-10">
                 <button onClick={() => toggleSelect(product.id)} className="text-white drop-shadow-md">
-                   {selectedProducts.includes(product.id) ? <CheckSquare className="h-5 w-5 text-primary fill-surface" /> : <Square className="h-5 w-5" />}
+                  {selectedProducts.includes(product.id) ? <CheckSquare className="h-5 w-5 text-primary fill-surface" /> : <Square className="h-5 w-5" />}
                 </button>
               </div>
               <div className="relative aspect-square bg-muted overflow-hidden">

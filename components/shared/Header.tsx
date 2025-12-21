@@ -59,8 +59,16 @@ export function Header() {
 
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
-          <Image src="/logo.png" alt="NadineKollections" width={200} height={180}  priority />
+          <Image
+            src="/logo.png"
+            alt="NadineKollections"
+            width={200}
+            height={80}
+            priority
+            className="h-36 w-auto" // adjust h-6 / h-8 / h-10 as needed
+          />
         </Link>
+
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center gap-8">

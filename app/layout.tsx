@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { CartDrawer } from "@/components/customer/CartDrawer";
 import "./globals.css";
+import Providers from "./providers";
 
 const helix = localFont({
   src: [
@@ -108,11 +109,13 @@ export default function RootLayout({
       <body
         className={`${helix.variable} antialiased bg-background text-text-primary font-sans`}
       >
-        <AppShell>
-          {children}
-        </AppShell>
-        <CartDrawer />
-        <Toaster position="top-center" richColors />
+        <Providers>
+          <AppShell>
+            {children}
+          </AppShell>
+          <CartDrawer />
+          <Toaster position="top-center" richColors />
+        </Providers>
       </body>
     </html>
   );
