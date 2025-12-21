@@ -73,82 +73,9 @@ export default async function CategoryPage({
     console.error("Error fetching products:", error);
   }
 
-  // Fallback for demo if no DB connection or empty
-  const mockProducts = [
-    {
-      id: "mock-1",
-      title: "Luxury Silk Dress",
-      description: "Elegant silk dress for special occasions.",
-      price: 45000,
-      primary_image: "/products/women-1.png",
-      category: "Women",
-      slug: "luxury-silk-dress",
-      stock: 10,
-    },
-    {
-      id: "mock-2",
-      title: "Classic Leather Loafers",
-      description: "Handcrafted leather loafers.",
-      price: 25000,
-      primary_image: "/products/men-1.png",
-      category: "Men",
-      slug: "classic-leather-loafers",
-      stock: 15,
-    },
-    {
-      id: "mock-3",
-      title: "Kids Denim Jacket",
-      description: "Durable and stylish denim jacket.",
-      price: 12000,
-      primary_image: "/products/kids-1.png",
-      category: "Kids",
-      slug: "kids-denim-jacket",
-      stock: 20,
-    },
-    {
-      id: "mock-4",
-      title: "Gold Plated Necklace",
-      description: "18k gold plated necklace.",
-      price: 8500,
-      primary_image: "/products/accessories-1.png",
-      category: "Accessories",
-      slug: "gold-plated-necklace",
-      stock: 50,
-    },
-    {
-      id: "mock-5",
-      title: "Smart Noise Cancelling Headphones",
-      description: "Premium sound quality.",
-      price: 35000,
-      primary_image: "/products/gadget-1.png",
-      category: "Gadgets",
-      slug: "smart-headphones",
-      stock: 30,
-    },
-  ];
+  // Calculate pagination
+  const totalPages = Math.ceil(count / itemsPerPage);
 
-  // If using mock data, handle pagination manually
-  let displayProducts = products;
-  let totalItems = count;
-
-  if (!products?.length && !error) {
-     let filteredMocks = mockProducts.filter(p => category.toLowerCase() === 'all' || p.category.toLowerCase() === category.toLowerCase());
-     if (isShoesFilter) {
-        filteredMocks = filteredMocks.filter(p => p.title.toLowerCase().includes('shoe') || p.title.toLowerCase().includes('loafer') || p.title.toLowerCase().includes('sneaker') || p.title.toLowerCase().includes('boot'));
-     }
-
-      if (searchQuery) {
-        const lowerQ = searchQuery.toLowerCase();
-        filteredMocks = filteredMocks.filter(p =>
-          p.title.toLowerCase().includes(lowerQ) ||
-          p.description.toLowerCase().includes(lowerQ)
-        );
-      }
-     totalItems = filteredMocks.length;
-     displayProducts = filteredMocks.slice(from, to + 1);
-  }
-
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
 
   return (
     <div className="min-h-screen bg-background">
@@ -157,7 +84,7 @@ export default async function CategoryPage({
         <div className="md:hidden mb-6 space-y-4">
           <div>
             <h1 className="text-2xl font-bold mb-1">{searchQuery ? `Search: "${searchQuery}"` : categoryName}</h1>
-            <p className="text-sm text-text-secondary">{totalItems} products found</p>
+            <p className="text-sm text-text-secondary">{count} products found</p>
           </div>
         </div>
 
@@ -165,24 +92,24 @@ export default async function CategoryPage({
           {/* Sidebar / Filters */}
           <ProductFilters
             categoryName={categoryName}
-            totalItems={totalItems}
+            totalItems={count}
             activeCategory={category}
             activeType={type as string}
           />
 
           {/* Product Grid */}
           <div className="flex-1 w-full">
-            {displayProducts && displayProducts.length > 0 ? (
+            {products && products.length > 0 ? (
               <>
                 <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-                  {displayProducts.map((product) => (
+                  {products.map((product) => (
                     <ProductCard
                       key={product.id}
                       id={product.id}
                       title={product.title}
                       slug={product.slug}
                       price={product.price}
-                      salePrice={product.sale_price}
+                      salePrice={product.sale_price ?? undefined}
                       image={product.primary_image || (product.images && product.images[0]) || "/placeholder.jpg"}
                       category={categoryName}
                       isNew={product.is_new}
@@ -194,9 +121,9 @@ export default async function CategoryPage({
                 {/* Pagination */}
                 <div className="mt-8">
                   <Pagination
-                      currentPage={currentPage}
-                      totalPages={totalPages}
-                      baseUrl={`/shop/${category}`}
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    baseUrl={`/shop/${category}`}
                   />
                 </div>
               </>

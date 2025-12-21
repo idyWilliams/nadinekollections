@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS public.products (
   category TEXT[] DEFAULT '{}', -- Array of categories
   primary_image TEXT,
   images TEXT[] DEFAULT '{}',
+  stock INTEGER DEFAULT 0, -- Inventory stock count
   is_featured BOOLEAN DEFAULT false,
   is_new BOOLEAN DEFAULT false,
   is_active BOOLEAN DEFAULT true,
@@ -147,32 +148,44 @@ ALTER TABLE public.try_on_sessions ENABLE ROW LEVEL SECURITY;
 -- RLS Policies
 
 -- Profiles: Users can read/update their own. Admins can read all.
+DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
 CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
+DROP POLICY IF EXISTS "Public read access to profiles (optional, usually restricted)" ON public.profiles;
 CREATE POLICY "Public read access to profiles (optional, usually restricted)" ON public.profiles FOR SELECT USING (true); -- Adjusted for simplicity in this context, usually restricted.
 
 -- Products: Public read. Admin write.
+DROP POLICY IF EXISTS "Public can view active products" ON public.products;
 CREATE POLICY "Public can view active products" ON public.products FOR SELECT USING (is_active = true);
+DROP POLICY IF EXISTS "Admins can manage products" ON public.products;
 CREATE POLICY "Admins can manage products" ON public.products FOR ALL USING (
   EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
 );
 
 -- Variants: Public read. Admin write.
+DROP POLICY IF EXISTS "Public can view variants" ON public.product_variants;
 CREATE POLICY "Public can view variants" ON public.product_variants FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admins can manage variants" ON public.product_variants;
 CREATE POLICY "Admins can manage variants" ON public.product_variants FOR ALL USING (
   EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
 );
 
 -- Orders: Users view own. Admins view all.
+DROP POLICY IF EXISTS "Users can view own orders" ON public.orders;
 CREATE POLICY "Users can view own orders" ON public.orders FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can create orders" ON public.orders;
 CREATE POLICY "Users can create orders" ON public.orders FOR INSERT WITH CHECK (auth.uid() = user_id OR user_id IS NULL); -- Allow guest orders (user_id null)
+DROP POLICY IF EXISTS "Admins can view all orders" ON public.orders;
 CREATE POLICY "Admins can view all orders" ON public.orders FOR SELECT USING (
   EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
 );
 
 -- Try On Sessions: Users view own. Guests view by guest_id (handled in app logic, RLS tricky for guests without auth).
 -- For simplicity, we allow insert for authenticated and anon (guests).
+DROP POLICY IF EXISTS "Enable insert for all users" ON public.try_on_sessions;
 CREATE POLICY "Enable insert for all users" ON public.try_on_sessions FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Users view own sessions" ON public.try_on_sessions;
 CREATE POLICY "Users view own sessions" ON public.try_on_sessions FOR SELECT USING (auth.uid() = user_id);
 
 -- Functions & Triggers
@@ -197,4 +210,14 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
+-- Performance Indexes
+CREATE INDEX IF NOT EXISTS idx_products_is_featured ON public.products(is_featured) WHERE is_featured = true AND is_active = true;
+CREATE INDEX IF NOT EXISTS idx_products_category ON public.products USING GIN(category);
+CREATE INDEX IF NOT EXISTS idx_products_slug ON public.products(slug);
+CREATE INDEX IF NOT EXISTS idx_products_is_active ON public.products(is_active);
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON public.orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_payment_status ON public.orders(payment_status);
+CREATE INDEX IF NOT EXISTS idx_orders_user_id ON public.orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_banner_ads_active ON public.banner_ads(is_active, display_order) WHERE is_active = true;
 

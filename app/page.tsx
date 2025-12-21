@@ -4,49 +4,12 @@ import { Button } from "@/components/ui/button";
 import { WhatsAppButton } from "@/components/shared/WhatsAppButton";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { getFeaturedProducts } from "@/lib/services/products";
 
-// Mock data - replace with DB fetch later
-const featuredProducts = [
-  {
-    id: "1",
-    title: "Kids Floral Dress",
-    slug: "kids-floral-dress",
-    price: 9500,
-    image: "/products/kids-1.png",
-    category: "Kids",
-    isNew: true,
-    stock: 5,
-  },
-  {
-    id: "2",
-    title: "Women Flashy Sequined Gown",
-    slug: "sequined-gown",
-    price: 42000,
-    salePrice: 35000,
-    image: "/products/women-1.png",
-    category: "Women",
-    isSale: true,
-  },
-  {
-    id: "3",
-    title: "Men Casual Full Wear Set",
-    slug: "men-casual-set",
-    price: 18000,
-    image: "/products/men-1.png",
-    category: "Men",
-  },
-  {
-    id: "4",
-    title: "Smart LED Mood Light",
-    slug: "smart-led-light",
-    price: 7800,
-    image: "/products/accessories-1.png",
-    category: "Gadgets",
-    isNew: true,
-  },
-];
+export default async function Home() {
+  // Fetch featured products from Supabase
+  const featuredProducts = await getFeaturedProducts(8);
 
-export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       <HeroBanner />
@@ -68,11 +31,33 @@ export default function Home() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
-            {featuredProducts.map((product) => (
-              <ProductCard key={product.id} {...product} />
-            ))}
-          </div>
+          {featuredProducts.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
+              {featuredProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  id={product.id}
+                  title={product.title}
+                  slug={product.slug}
+                  price={product.price}
+                  salePrice={product.sale_price ?? undefined}
+                  image={product.primary_image || (product.images && product.images[0]) || "/placeholder.jpg"}
+                  category={Array.isArray(product.category) ? product.category[0] : product.category}
+                  isNew={product.is_new}
+                  stock={product.stock}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex h-64 flex-col items-center justify-center rounded-2xl bg-surface p-8 text-center">
+              <p className="text-lg font-medium text-text-primary">
+                No featured products available yet.
+              </p>
+              <p className="text-text-secondary">
+                Check back soon for our latest collections!
+              </p>
+            </div>
+          )}
         </section>
 
         {/* Categories Grid */}

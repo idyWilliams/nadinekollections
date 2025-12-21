@@ -7,6 +7,7 @@ import { Header } from "@/components/shared/Header";
 import { Footer } from "@/components/shared/Footer";
 import { WhatsAppButton } from "@/components/shared/WhatsAppButton";
 import { notFound } from "next/navigation";
+import { getProductBySlug, getRelatedProducts } from "@/lib/services/products";
 
 export default async function ProductPage({
   params,
@@ -14,33 +15,16 @@ export default async function ProductPage({
   params: Promise<{ category: string; slug: string }>;
 }) {
   const { category, slug } = await params;
-  const supabase = await createClient();
 
-  const { data: product, error } = await supabase
-    .from("products")
-    .select("*")
-    .eq("slug", slug)
-    .single();
+  // Fetch product from Supabase
+  const product = await getProductBySlug(slug);
 
-  if (error || !product) {
-    console.error("Product not found:", error);
-    // Fallback for demo if DB is empty
-    // return notFound();
+  if (!product) {
+    notFound();
   }
 
-  // Mock product if not found in DB (for demo purposes)
-  const displayProduct = product || {
-    id: "mock-1",
-    title: "Demo Product",
-    description: "This is a demo product description. It features high-quality materials and a premium design.",
-    price: 15000,
-    primary_image: "/products/women-1.png",
-    category: "Women",
-    stock: 10,
-    images: ["/products/women-1.png", "/products/women-1.png"],
-    features: ["Premium Quality", "Sustainable Materials", "Handmade"],
-    variants: [],
-  };
+  // Fetch related products from same category
+  const relatedProducts = await getRelatedProducts(product.id, product.category, 4);
 
   return (
     <div className="min-h-screen bg-background">
@@ -53,50 +37,30 @@ export default async function ProductPage({
           </Link>
         </div>
 
-        <ProductDetails product={displayProduct} />
+        <ProductDetails product={product} />
 
-        {/* Featured Products / You May Also Like */}
-        <section className="mt-24">
-          <h2 className="text-2xl font-bold mb-8">You May Also Like</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {/* Mock Featured Products - In a real app, fetch related products */}
-            <ProductCard
-              id="feat-1"
-              title="Classic Silk Blouse"
-              slug="classic-silk-blouse"
-              price={45000}
-              image="/products/women-2.png"
-              category="Women"
-              isNew
-            />
-            <ProductCard
-              id="feat-2"
-              title="Tailored Linen Trousers"
-              slug="tailored-linen-trousers"
-              price={35000}
-              image="/products/women-3.png"
-              category="Women"
-            />
-            <ProductCard
-              id="feat-3"
-              title="Gold Plated Necklace"
-              slug="gold-plated-necklace"
-              price={15000}
-              image="/products/accessories-1.png"
-              category="Accessories"
-            />
-            <ProductCard
-              id="feat-4"
-              title="Leather Crossbody Bag"
-              slug="leather-crossbody-bag"
-              price={55000}
-              image="/products/accessories-2.png"
-              category="Accessories"
-              isSale
-              salePrice={45000}
-            />
-          </div>
-        </section>
+        {/* Related Products / You May Also Like */}
+        {relatedProducts.length > 0 && (
+          <section className="mt-24">
+            <h2 className="text-2xl font-bold mb-8">You May Also Like</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {relatedProducts.map((relatedProduct) => (
+                <ProductCard
+                  key={relatedProduct.id}
+                  id={relatedProduct.id}
+                  title={relatedProduct.title}
+                  slug={relatedProduct.slug}
+                  price={relatedProduct.price}
+                  salePrice={relatedProduct.sale_price ?? undefined}
+                  image={relatedProduct.primary_image || (relatedProduct.images && relatedProduct.images[0]) || "/placeholder.jpg"}
+                  category={Array.isArray(relatedProduct.category) ? relatedProduct.category[0] : relatedProduct.category}
+                  isNew={relatedProduct.is_new}
+                  stock={relatedProduct.stock}
+                />
+              ))}
+            </div>
+          </section>
+        )}
       </main>
     </div>
   );

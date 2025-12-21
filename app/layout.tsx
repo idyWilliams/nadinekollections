@@ -91,8 +91,51 @@ const helix = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "NadineKollections | Ultra-Premium Shopping",
-  description: "Experience soft-luxury shopping with NadineKollections.",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://nadinekollections.com'),
+  title: {
+    default: 'NadineKollections | Premium Fashion & Lifestyle',
+    template: '%s | NadineKollections',
+  },
+  description: 'Discover premium fashion for women, men, and kids. Shop exclusive collections of clothing, accessories, and gadgets at NadineKollections.',
+  keywords: ['fashion', 'premium clothing', 'women fashion', 'men fashion', 'kids clothing', 'accessories', 'gadgets', 'online shopping Nigeria'],
+  authors: [{ name: 'NadineKollections' }],
+  creator: 'NadineKollections',
+  publisher: 'NadineKollections',
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: '/',
+    siteName: 'NadineKollections',
+    title: 'NadineKollections | Premium Fashion & Lifestyle',
+    description: 'Discover premium fashion for women, men, and kids. Shop exclusive collections of clothing, accessories, and gadgets.',
+    images: [{
+      url: '/og-image.jpg',
+      width: 1200,
+      height: 630,
+      alt: 'NadineKollections',
+    }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'NadineKollections | Premium Fashion & Lifestyle',
+    description: 'Discover premium fashion for women, men, and kids.',
+    images: ['/og-image.jpg'],
+    creator: '@nadinekollections',
+  },
+  verification: {
+    google: 'your-google-verification-code',
+  },
 };
 
 import { Toaster } from "sonner";
