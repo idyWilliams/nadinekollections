@@ -47,7 +47,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
             fontSize={12}
             tickLine={false}
             axisLine={false}
-            tickFormatter={(value) => `$${value}`}
+            tickFormatter={(value) => `₦${value}`}
           />
           <Tooltip
             contentStyle={{

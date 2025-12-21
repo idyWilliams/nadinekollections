@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { CheckCircle, CreditCard, MapPin, Truck, Tag, X } from "lucide-react";
 import Image from "next/image";
+import { useAfricaPay } from "@use-africa-pay/core";
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +25,45 @@ export default function CheckoutPage() {
   const [createAccount, setCreateAccount] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
 
+  // const { pay, error } = useAfricaPay({
+  //   provider: 'paystack',
+  //   config: {
+  //     publicKey: 'pk_test_c122b9780327b705258e8af9e73e34401698af89',
+  //     amount: 5000, // 50.00 NGN
+  //     currency: 'NGN',
+  //     reference: 'ref_' + Date.now(),
+  //     user: {
+  //       email: 'user@example.com',
+  //     },
+  //     onSuccess: (res) => console.log(res),
+  //     onClose: () => console.log('Closed'),
+  //   },
+  // });
+  const { initializePayment, loading: isLoading, error } = useAfricaPay();
+
+  const handlePayment = () => {
+    initializePayment({
+      provider: 'paystack', // or 'flutterwave', 'monnify'
+      publicKey: 'pk_test_c122b9780327b705258e8af9e73e34401698af89',
+      amount: 500000, // Amount in kobo (or lowest denomination)
+      currency: 'NGN',
+      reference: 'unique_ref_' + Date.now(),
+      user: {
+        email: 'customer@example.com',
+        name: 'John Doe',
+        phonenumber: '08012345678',
+      },
+      metadata: {
+        custom_field: 'value',
+      },
+      onSuccess: (response) => {
+        console.log('Payment successful:', response);
+      },
+      onClose: () => {
+        console.log('Payment closed');
+      },
+    });
+  };
   // Check if user is logged in
   useEffect(() => {
     const checkUser = async () => {
@@ -262,8 +302,10 @@ export default function CheckoutPage() {
                   <Input name="zip" value={formData.zip} onChange={handleInputChange} placeholder="10001" />
                 </div>
               </div>
+              <button onClick={handlePayment} disabled={loading}>
+                {isLoading ? 'Processing...' : 'Pay Now'}
+              </button>
 
-              {/* Create Account Checkbox - Only show for guest users */}
               {!currentUser && (
                 <div className="space-y-4 p-4 bg-muted/20 rounded-lg border border-border-light">
                   <div className="flex items-start gap-3">

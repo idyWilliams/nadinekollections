@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
 import { Package, ShoppingCart, ArrowUpRight, ArrowDownRight, DollarSign, AlertTriangle, MapPin } from "lucide-react";
@@ -9,114 +8,43 @@ import { LowStockWidget } from "@/components/admin/LowStockWidget";
 import { OrderMap } from "@/components/admin/OrderMap";
 
 export default async function AdminDashboard() {
-  const supabase = await createClient();
+  // Mock Data for Dashboard
+  const totalRevenue = 4500000;
+  const ordersTodayCount = 25;
+  const totalProductsCount = 150;
+  const lowStockCount = 8;
 
-  // 1. Fetch Real Metrics
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(today.getDate() - 6);
-  sevenDaysAgo.setHours(0, 0, 0, 0);
+  const chartRevenueData = [
+    { date: "Mon", value: 150000 },
+    { date: "Tue", value: 230000 },
+    { date: "Wed", value: 180000 },
+    { date: "Thu", value: 320000 },
+    { date: "Fri", value: 290000 },
+    { date: "Sat", value: 450000 },
+    { date: "Sun", value: 380000 },
+  ];
 
-  // Parallel data fetching
-  const [
-    { data: revenueData },
-    { count: ordersTodayCount },
-    { count: totalProductsCount },
-    { count: lowStockCount },
-    { data: lowStockItemsRaw },
-    { data: recentOrdersRaw },
-    { data: orderItemsRaw }
-  ] = await Promise.all([
-    // Total Revenue (Paid orders) & Revenue History (Last 7 Days)
-    supabase.from("orders").select("total_amount, created_at").eq("payment_status", "paid").gte("created_at", sevenDaysAgo.toISOString()),
-    // Orders Today
-    supabase.from("orders").select("*", { count: "exact", head: true }).gte("created_at", today.toISOString()),
-    // Active Products
-    supabase.from("products").select("*", { count: "exact", head: true }).eq("is_active", true),
-    // Low Stock Count (stock < 5)
-    supabase.from("products").select("*", { count: "exact", head: true }).lt("stock", 5),
-    // Low Stock Items (Top 5)
-    supabase.from("products")
-      .select("id, title, stock, primary_image")
-      .lt("stock", 5)
-      .limit(5),
-    // Recent Orders (Last 10)
-    supabase.from("orders")
-      .select("*, profiles(full_name), order_items(count)")
-      .order("created_at", { ascending: false })
-      .limit(10),
-    // Category Sales Data
-    supabase.from("order_items").select("quantity, products(category)")
-  ]);
+  const categoryData = [
+    { name: "Women", value: 45, color: "#D4AF37" },
+    { name: "Men", value: 30, color: "#000000" },
+    { name: "Kids", value: 15, color: "#1E40AF" },
+    { name: "Accessories", value: 10, color: "#9CA3AF" },
+  ];
 
-  // --- Process Revenue Data ---
-  const totalRevenue = revenueData?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
+  const recentOrders = [
+    { id: "ORD-7829", customer: "Amara Okeke", total: 45000, status: "Pending", date: "2024-03-15", items: 3 },
+    { id: "ORD-7828", customer: "John Doe", total: 12500, status: "Processing", date: "2024-03-14", items: 1 },
+    { id: "ORD-7827", customer: "Chioma Adebayo", total: 89000, status: "Shipped", date: "2024-03-14", items: 5 },
+    { id: "ORD-7826", customer: "Sarah Williams", total: 32000, status: "Delivered", date: "2024-03-13", items: 2 },
+    { id: "ORD-7825", customer: "Chris Evans", total: 15000, status: "Delivered", date: "2024-03-12", items: 1 },
+  ];
 
-  // Group revenue by date for the last 7 days
-  const revenueByDate = new Map<string, number>();
-  // Initialize last 7 days with 0
-  for (let i = 0; i < 7; i++) {
-    const d = new Date();
-    d.setDate(today.getDate() - i);
-    const dateStr = d.toLocaleDateString('en-US', { weekday: 'short' }); // Mon, Tue
-    revenueByDate.set(dateStr, 0);
-  }
+  const lowStockItems = [
+    { id: "1", title: "Gold Plated Necklace", stock: 2, image: "/products/accessories-1.png" },
+    { id: "2", title: "Silk Scarf", stock: 4, image: "/products/accessories-2.png" },
+    { id: "3", title: "Leather Belt", stock: 3, image: "/products/men-1.png" },
+  ];
 
-  revenueData?.forEach(order => {
-    const date = new Date(order.created_at);
-    const dateStr = date.toLocaleDateString('en-US', { weekday: 'short' });
-    if (revenueByDate.has(dateStr)) {
-      revenueByDate.set(dateStr, (revenueByDate.get(dateStr) || 0) + (order.total_amount || 0));
-    }
-  });
-
-  // Convert map to array and reverse to show oldest to newest
-  const chartRevenueData = Array.from(revenueByDate.entries())
-    .map(([date, value]) => ({ date, value }))
-    .reverse();
-
-
-  // --- Process Category Data ---
-  const categorySales = new Map<string, number>();
-  orderItemsRaw?.forEach((item: any) => {
-    const categories = item.products?.category || [];
-    categories.forEach((cat: string) => {
-      categorySales.set(cat, (categorySales.get(cat) || 0) + (item.quantity || 0));
-    });
-  });
-
-  const categoryColors = ["#D4AF37", "#000000", "#1E40AF", "#9CA3AF", "#10B981", "#EF4444"];
-  const categoryData = Array.from(categorySales.entries())
-    .map(([name, value], index) => ({
-      name,
-      value,
-      color: categoryColors[index % categoryColors.length]
-    }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 5); // Top 5 categories
-
-
-  // --- Process Recent Orders ---
-  const recentOrders = recentOrdersRaw?.map(order => ({
-    id: order.id.slice(0, 8).toUpperCase(), // Short ID
-    customer: order.customer_name || order.profiles?.full_name || "Guest",
-    total: order.total_amount,
-    status: order.status,
-    date: new Date(order.created_at).toLocaleDateString(),
-    items: order.order_items?.[0]?.count || 0
-  })) || [];
-
-
-  // Map low stock items to match widget interface
-  const lowStockItems = lowStockItemsRaw?.map(item => ({
-    id: item.id,
-    title: item.title,
-    stock: item.stock,
-    image: item.primary_image || '/placeholder.png'
-  })) || [];
-
-  // Mock Map Data (Since we don't have real address data yet)
   const mapData = [
     { state: "Lagos", value: 120 },
     { state: "Abuja", value: 80 },
@@ -134,22 +62,22 @@ export default async function AdminDashboard() {
       value: formatCurrency(totalRevenue, "NGN"),
       change: "Last 7 days",
       icon: DollarSign,
-      trend: "neutral",
+      trend: "up",
       color: "text-primary",
       bg: "bg-primary/10",
     },
     {
       title: "Orders Today",
-      value: ordersTodayCount?.toString() || "0",
+      value: ordersTodayCount.toString(),
       change: "Daily count",
       icon: ShoppingCart,
-      trend: "neutral",
+      trend: "up",
       color: "text-blue-600",
       bg: "bg-blue-100",
     },
     {
       title: "Active Products",
-      value: totalProductsCount?.toString() || "0",
+      value: totalProductsCount.toString(),
       change: "In catalog",
       icon: Package,
       trend: "neutral",
@@ -158,10 +86,10 @@ export default async function AdminDashboard() {
     },
     {
       title: "Low Stock Alerts",
-      value: lowStockCount?.toString() || "0",
+      value: lowStockCount.toString(),
       change: "Action Needed",
       icon: AlertTriangle,
-      trend: "neutral",
+      trend: "down",
       color: "text-red-600",
       bg: "bg-red-100",
     },
@@ -221,13 +149,7 @@ export default async function AdminDashboard() {
             <CardTitle>Sales by Category</CardTitle>
           </CardHeader>
           <CardContent>
-             {categoryData.length > 0 ? (
-               <CategoryPieChart data={categoryData} />
-             ) : (
-               <div className="h-[300px] flex items-center justify-center text-text-muted">
-                 No sales data yet
-               </div>
-             )}
+             <CategoryPieChart data={categoryData} />
           </CardContent>
         </Card>
       </div>

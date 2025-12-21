@@ -16,7 +16,8 @@ interface Product {
 interface TryOnCanvasProps {
   image: string | null;
   isGenerating: boolean;
-  activeItem: Product | null;
+  activeItem?: Product | null;
+  products?: Product[];
 }
 
 export function TryOnCanvas({ image, isGenerating }: TryOnCanvasProps) {
