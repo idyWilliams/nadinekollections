@@ -45,6 +45,7 @@ export default async function Home() {
                   category={Array.isArray(product.category) ? product.category[0] : product.category}
                   isNew={product.is_new}
                   stock={product.stock}
+                  isActive={product.is_active}
                 />
               ))}
             </div>

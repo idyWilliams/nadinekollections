@@ -225,7 +225,7 @@ export default function CheckoutPage() {
         return;
       }
 
-      // 2. Initialize Payment with useAfricaPay
+      // 3. Initialize Payment with useAfricaPay
       const config: any = {
         provider: paymentSettings.provider,
         amount: calculateTotal() * 100, // Amount in kobo
@@ -239,12 +239,12 @@ export default function CheckoutPage() {
         onSuccess: async (response: any) => {
           console.log('Payment successful:', response);
 
-          // Update order status to Paid
           await supabase
             .from('orders')
             .update({
-              status: 'Paid',
-              payment_ref: response.reference || response.transaction_id
+              status: 'processing',
+              payment_status: 'paid',
+              payment_reference: response.reference || response.transaction_id
             })
             .eq('id', order.id);
 

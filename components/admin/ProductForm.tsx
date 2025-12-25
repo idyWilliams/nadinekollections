@@ -19,6 +19,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { ProductCard } from "@/components/customer/ProductCard";
+import { Switch } from "@/components/ui/switch";
 
 interface ProductFormProps {
   initialData?: {
@@ -37,6 +38,8 @@ interface ProductFormProps {
     images?: string[];
     primary_image?: string;
     gallery_images?: string[];
+    is_featured?: boolean;
+    is_active?: boolean;
   };
   isEditing?: boolean;
 }
@@ -53,6 +56,8 @@ interface FormData {
   promotionId: string;
   metaTitle: string;
   metaDescription: string;
+  isFeatured: boolean;
+  isActive: boolean;
 }
 
 export function ProductForm({ initialData, isEditing = false }: ProductFormProps) {
@@ -82,6 +87,8 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
     promotionId: "",
     metaTitle: "",
     metaDescription: "",
+    isFeatured: false,
+    isActive: true,
   });
 
   // Initialize form with data if editing
@@ -99,6 +106,8 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
         promotionId: initialData.promotion_id || "",
         metaTitle: initialData.seo_meta?.title || "",
         metaDescription: initialData.seo_meta?.description || "",
+        isFeatured: initialData.is_featured || false,
+        isActive: initialData.is_active !== false,
       });
       setImages(initialData.images || (initialData.primary_image ? [initialData.primary_image, ...(initialData.gallery_images || [])] : []));
     }
@@ -290,7 +299,8 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
           title: formData.metaTitle || formData.title,
           description: formData.metaDescription || formData.description,
         },
-        is_active: true,
+        is_featured: formData.isFeatured,
+        is_active: formData.isActive,
       };
 
       let error;
@@ -354,6 +364,7 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
                   category={formData.category}
                   stock={parseInt(formData.stock) || 0}
                   isNew={!isEditing}
+                  isActive={formData.isActive}
                 />
               </div>
             </DialogContent>

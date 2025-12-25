@@ -56,6 +56,7 @@ export default async function ProductPage({
                   category={Array.isArray(relatedProduct.category) ? relatedProduct.category[0] : relatedProduct.category}
                   isNew={relatedProduct.is_new}
                   stock={relatedProduct.stock}
+                  isActive={relatedProduct.is_active}
                 />
               ))}
             </div>

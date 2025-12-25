@@ -23,6 +23,7 @@ interface ProductCardProps {
   isNew?: boolean;
   isSale?: boolean;
   stock?: number;
+  isActive?: boolean;
 }
 
 export function ProductCard({
@@ -34,7 +35,8 @@ export function ProductCard({
   image,
   category,
   isNew,
-  stock,
+  stock = 0,
+  isActive = true,
 }: ProductCardProps) {
   const { addItem } = useCartStore();
   const { addItem: addToWishlist, removeItem, isInWishlist } = useWishlistStore();
@@ -55,13 +57,15 @@ export function ProductCard({
     >
       {/* Badges */}
       <div className="absolute left-3 top-3 md:left-4 md:top-4 z-10 flex flex-col gap-2">
-        {isNew && <Badge variant="secondary">New</Badge>}
-        {discountPercentage > 0 && (
+        {stock === 0 && <Badge variant="destructive">Out of Stock</Badge>}
+        {!isActive && stock > 0 && <Badge variant="secondary">Unavailable</Badge>}
+        {isNew && stock > 0 && isActive && <Badge variant="secondary">New</Badge>}
+        {discountPercentage > 0 && stock > 0 && isActive && (
           <Badge variant="destructive" className="font-bold">
             -{discountPercentage}%
           </Badge>
         )}
-        {stock && stock < 10 && (
+        {stock > 0 && stock < 5 && isActive && (
           <Badge variant="warning">Only {stock} left!</Badge>
         )}
       </div>
@@ -78,11 +82,10 @@ export function ProductCard({
             toast.success("Added to wishlist");
           }
         }}
-        className={`absolute right-3 top-3 md:right-4 md:top-4 z-10 rounded-full p-1.5 md:p-2 backdrop-blur-sm transition-colors ${
-          isInWishlist(id)
+        className={`absolute right-3 top-3 md:right-4 md:top-4 z-10 rounded-full p-1.5 md:p-2 backdrop-blur-sm transition-colors ${isInWishlist(id)
             ? "bg-primary text-white hover:bg-primary/90"
             : "bg-white/80 text-text-secondary hover:bg-white hover:text-error"
-        }`}
+          }`}
       >
         <Heart className={`h-5 w-5 ${isInWishlist(id) ? "fill-current" : ""}`} />
       </button>
@@ -94,7 +97,8 @@ export function ProductCard({
             src={image}
             alt={title}
             fill
-            className="object-cover transition-transform duration-500 group-hover:scale-110"
+            className={`object-cover transition-transform duration-500 group-hover:scale-110 ${stock === 0 || !isActive ? "opacity-60 grayscale" : ""
+              }`}
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           />
         </div>
@@ -127,7 +131,9 @@ export function ProductCard({
         <Button
           className="w-full gap-2"
           size="sm"
+          disabled={stock === 0 || !isActive}
           onClick={() => {
+            if (stock === 0 || !isActive) return;
             addItem({
               id,
               title,
@@ -139,7 +145,7 @@ export function ProductCard({
           }}
         >
           <ShoppingBag className="h-4 w-4" />
-          Add to Cart
+          {stock === 0 ? "Out of Stock" : !isActive ? "Unavailable" : "Add to Cart"}
         </Button>
       </div>
     </motion.div>

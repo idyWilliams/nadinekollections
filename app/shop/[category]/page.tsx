@@ -114,6 +114,7 @@ export default async function CategoryPage({
                       category={categoryName}
                       isNew={product.is_new}
                       stock={product.stock}
+                      isActive={product.is_active}
                     />
                   ))}
                 </div>
