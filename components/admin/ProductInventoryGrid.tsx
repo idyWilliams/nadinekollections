@@ -45,6 +45,11 @@ interface Product {
   image: string;
   status: string;
   is_active: boolean;
+  is_featured: boolean;
+  created_at: string;
+  order_count?: number;
+  stockStatus: 'out' | 'low' | 'in';
+  isStale?: boolean;
 }
 
 interface ProductInventoryGridProps {
@@ -55,6 +60,8 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'stock-low' | 'stock-high'>('newest');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'out' | 'low' | 'in' | 'stale'>('all');
   const router = useRouter();
   const supabase = createClient();
   const queryClient = useQueryClient();
@@ -70,16 +77,26 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
 
       if (error) throw error;
 
-      return data.map(product => ({
-        id: product.id,
-        title: product.title,
-        category: Array.isArray(product.category) ? product.category[0] : product.category,
-        price: product.price,
-        stock: product.stock,
-        image: product.primary_image || product.images?.[0] || '/placeholder.png',
-        status: product.is_active ? 'Active' : 'Inactive',
-        is_active: product.is_active
-      }));
+      return data.map(product => {
+        const stock = product.stock || 0;
+        const createdAt = new Date(product.created_at);
+        const daysSinceCreation = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+
+        return {
+          id: product.id,
+          title: product.title,
+          category: Array.isArray(product.category) ? product.category[0] : product.category,
+          price: product.price,
+          stock,
+          image: product.primary_image || product.images?.[0] || '/placeholder.png',
+          status: product.is_active ? 'Active' : 'Inactive',
+          is_active: product.is_active,
+          is_featured: product.is_featured || false,
+          created_at: product.created_at,
+          stockStatus: (stock === 0 ? 'out' : stock < 10 ? 'low' : 'in') as 'out' | 'low' | 'in',
+          isStale: daysSinceCreation > 30 && (product.order_count || 0) === 0,
+        };
+      });
     },
     initialData: initialProducts,
     staleTime: 1000 * 60, // 1 minute
@@ -103,6 +120,23 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
     }
   };
 
+  const toggleFeatured = async (id: string, currentFeatured: boolean) => {
+    try {
+      const { error } = await supabase
+        .from("products")
+        .update({ is_featured: !currentFeatured })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      toast.success(`Product ${!currentFeatured ? "added to" : "removed from"} featured`);
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+    } catch (error) {
+      console.error("Error updating featured status:", error);
+      toast.error("Failed to update featured status");
+    }
+  };
+
   const deleteProduct = async (id: string) => {
     if (!confirm("Are you sure you want to delete this product? This action cannot be undone.")) return;
 
@@ -123,11 +157,36 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
     }
   };
 
-  // Filter Logic
-  const filteredProducts = products.filter(product =>
-    product.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.category.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter & Sort Logic
+  const filteredProducts = products
+    .filter(product => {
+      // 1. Search Filter
+      const matchesSearch =
+        product.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        product.category.toLowerCase().includes(searchTerm.toLowerCase());
+
+      if (!matchesSearch) return false;
+
+      // 2. Status Filter
+      if (filterStatus === 'all') return true;
+      if (filterStatus === 'stale') return product.isStale;
+
+      return product.stockStatus === filterStatus;
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'newest': // LIFO
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case 'oldest': // FIFO
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        case 'stock-low':
+          return a.stock - b.stock;
+        case 'stock-high':
+          return b.stock - a.stock;
+        default:
+          return 0;
+      }
+    });
 
   const toggleSelect = (id: string) => {
     setSelectedProducts(prev =>
@@ -179,6 +238,27 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
             <Filter className="h-4 w-4" />
             Filter
           </Button>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="h-9 px-3 rounded-md border border-border-light bg-background text-sm"
+          >
+            <option value="newest">Newest First (LIFO)</option>
+            <option value="oldest">Oldest First (FIFO)</option>
+            <option value="stock-low">Stock: Low to High</option>
+            <option value="stock-high">Stock: High to Low</option>
+          </select>
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value as any)}
+            className="h-9 px-3 rounded-md border border-border-light bg-background text-sm"
+          >
+            <option value="all">All Products</option>
+            <option value="out">Out of Stock</option>
+            <option value="low">Low Stock</option>
+            <option value="in">In Stock</option>
+            <option value="stale">Stale Products</option>
+          </select>
           <Link href="/admin/products/new">
             <Button className="btn-primary h-9">
               <Plus className="mr-2 h-4 w-4" /> Add Product
@@ -288,14 +368,16 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
                   <th className="px-4 py-3">Product</th>
                   <th className="px-4 py-3">Category</th>
                   <th className="px-4 py-3">Price</th>
-                  <th className="px-4 py-3">Stock</th>
+                  <th className="px-4 py-3">Stock Details</th>
+                  <th className="px-4 py-3">Created</th>
+                  <th className="px-4 py-3">Featured</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-light">
                 {filteredProducts.map((product) => (
-                  <tr key={product.id} className={`hover:bg-muted/50 transition-colors ${selectedProducts.includes(product.id) ? 'bg-primary/5' : ''}`}>
+                  <tr key={product.id} className={`hover:bg-muted/50 transition-colors ${selectedProducts.includes(product.id) ? 'bg-primary/5' : ''} ${product.stock === 0 ? 'bg-red-50 hover:bg-red-100' : ''}`}>
                     <td className="px-4 py-3">
                       <button onClick={() => toggleSelect(product.id)}>
                         {selectedProducts.includes(product.id) ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4 text-text-muted" />}
@@ -318,7 +400,36 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
                     <td className="px-4 py-3">{product.category}</td>
                     <td className="px-4 py-3 font-medium">{formatCurrency(product.price)}</td>
                     <td className="px-4 py-3">
-                      <span className={`${product.stock < 5 ? 'text-error font-bold' : ''}`}>{product.stock}</span>
+                      <div className="flex flex-col gap-1">
+                        <span className={`${product.stock < 5 ? 'text-error font-bold' : ''}`}>{product.stock} units</span>
+                        <div className="flex gap-1">
+                          {product.stock === 0 ? (
+                            <Badge variant="destructive" className="h-5 text-[10px] px-1">Out of Stock</Badge>
+                          ) : product.stock < 10 ? (
+                            <Badge variant="warning" className="h-5 text-[10px] px-1 bg-amber-500 text-white hover:bg-amber-600">Low Stock</Badge>
+                          ) : (
+                            <Badge variant="outline" className="h-5 text-[10px] px-1 text-green-600 border-green-600">In Stock</Badge>
+                          )}
+                          {product.isStale && (
+                            <Badge variant="secondary" className="h-5 text-[10px] px-1 bg-gray-200 text-gray-700" title="No orders in 30 days">Stale</Badge>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-text-secondary">
+                      {new Date(product.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => toggleFeatured?.(product.id, product.is_featured)}
+                        className={`p-1 rounded hover:bg-muted transition-colors ${product.is_featured ? 'text-amber-500' : 'text-gray-300'
+                          }`}
+                        title={product.is_featured ? "Remove from featured" : "Add to featured"}
+                      >
+                        <svg className="h-5 w-5" fill={product.is_featured ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                        </svg>
+                      </button>
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={product.status === 'Active' ? 'success' : 'secondary'}>{product.status}</Badge>
@@ -328,7 +439,7 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => router.push(`/admin/products/${product.id}/edit`)}>
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-error hover:text-error hover:bg-error/10">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-error hover:text-error hover:bg-error/10" onClick={() => deleteProduct(product.id)}>
                           <Trash className="h-4 w-4" />
                         </Button>
                       </div>
@@ -370,8 +481,13 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
                 </div>
 
                 <div className="flex items-center justify-between pt-3 border-t border-border-light">
-                  <div className="text-sm">
-                    Stock: <span className={`${product.stock < 5 ? 'text-error font-bold' : ''}`}>{product.stock}</span>
+                  <div className="text-sm flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <span>Stock: <span className={`${product.stock < 5 ? 'text-error font-bold' : ''}`}>{product.stock}</span></span>
+                      {product.stock === 0 && <span className="text-xs text-error font-medium">(Out)</span>}
+                      {product.isStale && <span className="text-xs text-text-secondary bg-muted px-1 rounded">Stale</span>}
+                    </div>
+                    <span className="text-xs text-text-secondary">Added: {new Date(product.created_at).toLocaleDateString()}</span>
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" className="h-8" onClick={() => router.push(`/admin/products/${product.id}/edit`)}>

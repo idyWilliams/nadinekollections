@@ -13,9 +13,9 @@ import Map, {
 } from "react-map-gl/mapbox";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { Loader2, AlertTriangle, MapPin, Layers } from "lucide-react";
+import { Loader2, AlertTriangle, MapPin, Layers, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { createClient } from "@/lib/supabase/client";
 
 // Coordinates for major Nigerian states
 const STATE_COORDINATES: Record<string, { lat: number; lng: number }> = {
@@ -29,35 +29,47 @@ const STATE_COORDINATES: Record<string, { lat: number; lng: number }> = {
   "ogun": { lat: 7.1557, lng: 3.3451 },
   "delta": { lat: 5.5325, lng: 5.8987 },
   "edo": { lat: 6.3350, lng: 5.6037 },
+  "ogun": { lat: 7.1557, lng: 3.3451 },
+  "anambra": { lat: 6.2209, lng: 6.9370 },
+  "abia": { lat: 5.5322, lng: 7.5001 },
+  "imo": { lat: 5.5720, lng: 7.0588 },
+  "akwa ibom": { lat: 5.0082, lng: 7.8639 },
+  "cross river": { lat: 5.8739, lng: 8.5969 },
+  "ebonyi": { lat: 6.2649, lng: 8.0137 },
+  "bayelsa": { lat: 4.7719, lng: 6.0699 },
+  "kwara": { lat: 8.9669, lng: 4.3886 },
+  "osun": { lat: 7.5629, lng: 4.5200 },
+  "ondo": { lat: 7.2571, lng: 5.2058 },
+  "ekiti": { lat: 7.7190, lng: 5.3110 },
+  "niger": { lat: 9.9312, lng: 5.5968 },
+  "kogi": { lat: 7.7333, lng: 6.7333 },
+  "benue": { lat: 7.3373, lng: 8.7426 },
+  "plateau": { lat: 9.2182, lng: 9.5179 },
+  "nasarawa": { lat: 8.5403, lng: 7.7039 },
+  "taraba": { lat: 7.9919, lng: 10.7714 },
+  "adamawa": { lat: 9.3265, lng: 12.3984 },
+  "gombe": { lat: 10.2904, lng: 11.1678 },
+  "bauchi": { lat: 10.3158, lng: 9.8442 },
+  "borno": { lat: 11.8333, lng: 13.1500 },
+  "yobe": { lat: 12.2940, lng: 11.9663 },
+  "jigawa": { lat: 12.2230, lng: 9.5619 },
+  "katsina": { lat: 12.9908, lng: 7.6177 },
+  "zamfara": { lat: 12.1704, lng: 6.2238 },
+  "sokoto": { lat: 13.0627, lng: 5.2433 },
+  "kebbi": { lat: 11.4969, lng: 4.1975 }
 };
 
 interface OrderMapProps {
-  data: { state: string; value: number }[];
+  data?: { state: string; value: number }[];
 }
 
-// Mapbox Token - In a real app, this should be in .env.local
-// Using a placeholder that will prompt the user if missing
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
-
-// Dummy data helpers
-const FIRST_NAMES = ["Chioma", "Emeka", "Adebayo", "Zainab", "Musa", "Ngozi", "Tunde", "Folake", "Kelechi", "Ibrahim", "Sarah", "David", "Amara", "Yusuf", "Funke"];
-const LAST_NAMES = ["Okonkwo", "Balogun", "Adeyemi", "Musa", "Ibrahim", "Eze", "Okafor", "Aliyu", "Mensah", "Oni", "Suleiman", "Danladi", "Bassey"];
-
-const STATE_CITIES: Record<string, string[]> = {
-  "lagos": ["Ikeja", "Lekki", "Victoria Island", "Yaba", "Surulere", "Ikorodu", "Epe", "Badagry"],
-  "abuja": ["Garki", "Wuse", "Maitama", "Asokoro", "Gwarinpa", "Kubwa"],
-  "rivers": ["Port Harcourt", "Obio-Akpor", "Bonny", "Degema", "Eleme"],
-  "kano": ["Kano Municipal", "Fagge", "Dala", "Gwale", "Tarauni"],
-  "oyo": ["Ibadan", "Ogbomosho", "Oyo", "Iseyin"],
-  "enugu": ["Enugu", "Nsukka", "Agbani", "Udi"],
-  "kaduna": ["Kaduna", "Zaria", "Kafanchan"],
-  "ogun": ["Abeokuta", "Ijebu-Ode", "Sagamu", "Ota"],
-  "delta": ["Warri", "Asaba", "Sapele", "Ughelli"],
-  "edo": ["Benin City", "Auchi", "Ekpoma"],
-};
 
 export function OrderMap({ data }: OrderMapProps) {
   const mapRef = useRef<MapRef>(null);
+  const supabase = createClient();
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [viewState, setViewState] = useState({
     latitude: 9.0820,
     longitude: 8.6753,
@@ -75,47 +87,67 @@ export function OrderMap({ data }: OrderMapProps) {
     setIsMounted(true);
   }, []);
 
-  // Generate GeoJSON data from the props
+  // Fetch real orders from database
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        const { data: ordersData, error } = await supabase
+          .from("orders")
+          .select(`
+            id,
+            customer_name,
+            shipping_address,
+            total_amount,
+            status,
+            created_at
+          `)
+          .order("created_at", { ascending: false })
+          .limit(500);
+
+        if (error) throw error;
+        setOrders(ordersData || []);
+      } catch (err) {
+        console.error("Error fetching orders:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrders();
+  }, [supabase]);
+
+  // Generate GeoJSON data from real orders
   const mapData = useMemo(() => {
     const features: any[] = [];
 
-    data.forEach((item) => {
-      const normalizedName = item.state.toLowerCase().replace(" state", "").trim();
-      const center = STATE_COORDINATES[normalizedName];
-      const cities = STATE_CITIES[normalizedName] || ["Central"];
+    orders.forEach((order) => {
+      const address = order.shipping_address;
+      if (!address || !address.state) return;
+
+      const normalizedState = address.state.toLowerCase().replace(" state", "").trim();
+      const center = STATE_COORDINATES[normalizedState];
 
       if (center) {
-        // Generate random points around the center based on the value
-        // To simulate real customer distribution
-        for (let i = 0; i < item.value; i++) {
-          // Add some random jitter (approx 0.1 - 0.5 degrees spread)
-          // Using a gaussian-like distribution for more realism
-          const r = 0.15 * Math.sqrt(-2 * Math.log(Math.random()));
-          const theta = 2 * Math.PI * Math.random();
+        // Add small random offset to prevent exact overlaps
+        const offsetLat = (Math.random() - 0.5) * 0.05;
+        const offsetLng = (Math.random() - 0.5) * 0.05;
 
-          const lat = center.lat + r * Math.cos(theta);
-          const lng = center.lng + r * Math.sin(theta);
-
-          // Generate random details
-          const firstName = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)];
-          const lastName = LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)];
-          const city = cities[Math.floor(Math.random() * cities.length)];
-
-          features.push({
-            type: "Feature",
-            properties: {
-              id: `${normalizedName}-${i}`,
-              state: item.state,
-              value: 1, // Each point represents 1 customer
-              customerName: `${firstName} ${lastName}`,
-              location: city
-            },
-            geometry: {
-              type: "Point",
-              coordinates: [lng, lat]
-            }
-          });
-        }
+        features.push({
+          type: "Feature",
+          properties: {
+            id: order.id,
+            customerName: order.customer_name || "Guest Customer",
+            location: `${address.city || "Unknown"}, ${address.state}`,
+            totalAmount: order.total_amount,
+            status: order.status,
+            createdAt: order.created_at,
+            address: address.address || "",
+          },
+          geometry: {
+            type: "Point",
+            coordinates: [center.lng + offsetLng, center.lat + offsetLat]
+          }
+        });
       }
     });
 
@@ -123,7 +155,7 @@ export function OrderMap({ data }: OrderMapProps) {
       type: "FeatureCollection",
       features
     };
-  }, [data]);
+  }, [orders]);
 
   // Cluster layer configuration
   const clusterLayer: any = {
@@ -135,11 +167,11 @@ export function OrderMap({ data }: OrderMapProps) {
       "circle-color": [
         "step",
         ["get", "point_count"],
-        "#51bbd6", // Blue for small clusters
+        "#51bbd6",
         50,
-        "#f1f075", // Yellow for medium
+        "#f1f075",
         100,
-        "#f28cb1"  // Pink for large
+        "#f28cb1"
       ],
       "circle-radius": [
         "step",
@@ -172,13 +204,13 @@ export function OrderMap({ data }: OrderMapProps) {
     filter: ["!", ["has", "point_count"]],
     paint: {
       "circle-color": "#11b4da",
-      "circle-radius": 4,
-      "circle-stroke-width": 1,
+      "circle-radius": 6,
+      "circle-stroke-width": 2,
       "circle-stroke-color": "#fff"
     }
   };
 
-  if (!isMounted) {
+  if (!isMounted || loading) {
     return (
       <div className="w-full h-[400px] bg-muted/20 rounded-xl flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -219,7 +251,6 @@ export function OrderMap({ data }: OrderMapProps) {
         onMouseEnter={(event) => {
           const feature = event.features?.[0];
           if (feature) {
-            // @ts-ignore
             setHoverInfo({
               longitude: event.lngLat.lng,
               latitude: event.lngLat.lat,
@@ -273,19 +304,31 @@ export function OrderMap({ data }: OrderMapProps) {
             closeButton={false}
             className="z-50"
           >
-            <div className="p-3 min-w-[150px]">
+            <div className="p-3 min-w-[200px]">
               {hoverInfo.feature.properties.cluster ? (
                 <div className="font-bold text-sm">
-                  Cluster of {hoverInfo.feature.properties.point_count} Customers
+                  Cluster of {hoverInfo.feature.properties.point_count} Orders
                 </div>
               ) : (
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <div className="font-bold text-sm border-b pb-1 mb-1">
                     {hoverInfo.feature.properties.customerName}
                   </div>
-                  <div className="text-xs text-muted-foreground flex items-center gap-1">
-                    <MapPin className="h-3 w-3" />
-                    {hoverInfo.feature.properties.location}, {hoverInfo.feature.properties.state}
+                  <div className="text-xs space-y-1">
+                    <div className="flex items-center gap-1 text-muted-foreground">
+                      <MapPin className="h-3 w-3" />
+                      {hoverInfo.feature.properties.location}
+                    </div>
+                    <div className="flex items-center gap-1 text-muted-foreground">
+                      <Package className="h-3 w-3" />
+                      ₦{hoverInfo.feature.properties.totalAmount?.toLocaleString()}
+                    </div>
+                    <div className={`text-xs font-medium capitalize ${hoverInfo.feature.properties.status === 'delivered' ? 'text-green-600' :
+                        hoverInfo.feature.properties.status === 'processing' ? 'text-blue-600' :
+                          'text-amber-600'
+                      }`}>
+                      {hoverInfo.feature.properties.status}
+                    </div>
                   </div>
                 </div>
               )}
@@ -322,12 +365,13 @@ export function OrderMap({ data }: OrderMapProps) {
         </Button>
       </div>
 
-      {/* Legend / Info */}
+      {/* Legend */}
       <div className="absolute bottom-8 left-4 bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-sm border max-w-[200px]">
         <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
-          <Layers className="h-4 w-4" /> Demographics
+          <Layers className="h-4 w-4" /> Customer Orders
         </h4>
         <div className="space-y-2 text-xs">
+          <div className="font-medium">Total Orders: {orders.length}</div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-[#51bbd6]" />
             <span>Low Density (&lt;50)</span>
