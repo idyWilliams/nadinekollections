@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Upload, X, GripVertical, Tag, DollarSign, Package, Image as ImageIcon, Eye } from "lucide-react";
+import { Upload, X, GripVertical, Tag, DollarSign, Package, Image as ImageIcon, Eye, ChevronDown } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
 import {
@@ -18,6 +18,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ProductCard } from "@/components/customer/ProductCard";
 
 
@@ -47,7 +56,7 @@ interface ProductFormProps {
 interface FormData {
   title: string;
   description: string;
-  category: string;
+  category: string[];
   originalPrice: string;
   salePrice: string;
   stock: string;
@@ -78,7 +87,7 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
   const [formData, setFormData] = useState<FormData>({
     title: "",
     description: "",
-    category: "Women",
+    category: ["Women"],
     originalPrice: "",
     salePrice: "",
     stock: "0",
@@ -97,7 +106,7 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
       setFormData({
         title: initialData.title || "",
         description: initialData.description || "",
-        category: initialData.category?.[0] || "Women",
+        category: Array.isArray(initialData.category) ? initialData.category : initialData.category ? [initialData.category] : ["Women"],
         originalPrice: initialData.original_price?.toString() || "",
         salePrice: initialData.sale_price?.toString() || initialData.price?.toString() || "",
         stock: initialData.stock?.toString() || "0",
@@ -130,8 +139,8 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
     if (!isEditing && formData.title && formData.category) {
       const generatedTags = new Set<string>();
 
-      // Add category as tag
-      generatedTags.add(formData.category.toLowerCase());
+      // Add categories as tags
+      formData.category.forEach(cat => generatedTags.add(cat.toLowerCase()));
 
       // Extract meaningful words from title (min 3 chars, exclude common words)
       const commonWords = ['the', 'and', 'for', 'with', 'from', 'this', 'that', 'new'];
@@ -153,7 +162,7 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
         descWords.forEach(word => generatedTags.add(word));
       }
 
-      // Merge with existing tags, keeping user-added ones
+      // Since category is now an array, we'll pick the first one for tag generation context or join them
       const autoTags = Array.from(generatedTags).slice(0, 8); // Limit to 8 tags
       const existingUserTags = formData.tags.filter(tag => !autoTags.includes(tag));
 
@@ -319,7 +328,7 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
         title: formData.title,
         slug: isEditing ? undefined : slug, // Don't update slug on edit to preserve SEO
         description: formData.description || null,
-        category: [formData.category],
+        category: formData.category,
         tags: formData.tags,
         original_price: originalPrice || salePrice,
         sale_price: salePrice,
@@ -401,7 +410,7 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
                   price={parseFloat(formData.originalPrice) || parseFloat(formData.salePrice) || 0}
                   salePrice={parseFloat(formData.salePrice) || 0}
                   image={images[0] || "/placeholder.jpg"}
-                  category={formData.category}
+                  category={formData.category[0] || "Uncategorized"}
                   stock={parseInt(formData.stock) || 0}
                   isNew={!isEditing}
                   isActive={formData.isActive}
@@ -453,18 +462,32 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="category">Category *</Label>
-                <select
-                  id="category"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                >
-                  <option value="Women">Women</option>
-                  <option value="Men">Men</option>
-                  <option value="Kids">Kids</option>
-                  <option value="Accessories">Accessories</option>
-                  <option value="Gadgets">Gadgets</option>
-                </select>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="w-full justify-between font-normal">
+                      {formData.category.length > 0 ? formData.category.join(", ") : "Select Categories"}
+                      <ChevronDown className="h-4 w-4 opacity-50" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-[200px]">
+                    {["Women", "Men", "Kids", "Accessories", "Gadgets"].map((cat) => (
+                      <DropdownMenuCheckboxItem
+                        key={cat}
+                        checked={formData.category.includes(cat)}
+                        onCheckedChange={(checked) => {
+                          setFormData(prev => {
+                            const newCategories = checked
+                              ? [...prev.category, cat]
+                              : prev.category.filter(c => c !== cat);
+                            return { ...prev, category: newCategories };
+                          });
+                        }}
+                      >
+                        {cat}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
 
               <div className="space-y-2">
