@@ -164,49 +164,83 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
     }
   }, [formData.title, formData.description, formData.category, isEditing, formData.tags]);
 
+  // Load draft on mount (only for new products)
+  useEffect(() => {
+    if (!isEditing && !initialData) {
+      const saved = localStorage.getItem("productFormDraft");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          // Separate images from formData if stored together, or handle structure
+          // Assuming we stored { ...formData, images }
+          const { images: savedImages, ...savedFormData } = parsed;
+          if (savedFormData) setFormData(prev => ({ ...prev, ...savedFormData }));
+          if (savedImages) setImages(savedImages);
+          toast.info("Restored saved draft");
+        } catch (e) {
+          console.error("Failed to parse draft", e);
+        }
+      }
+    }
+  }, [isEditing, initialData]);
+
+  // Save draft on change (debounced slightly by nature of React updates)
+  useEffect(() => {
+    if (!isEditing) {
+      const draft = { ...formData, images };
+      localStorage.setItem("productFormDraft", JSON.stringify(draft));
+    }
+  }, [formData, images, isEditing]);
+
   const [isUploading, setIsUploading] = useState(false);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
 
-    const file = e.target.files[0];
+    const files = Array.from(e.target.files);
     const supabase = createClient();
     setIsUploading(true);
+    let successCount = 0;
+    const newImageUrls: string[] = [];
 
-    try {
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `products/${fileName}`;
+    // Process all files
+    for (const file of files) {
+      try {
+        const fileExt = file.name.split(".").pop();
+        const fileName = `${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `products/${fileName}`;
 
-      const { error } = await supabase.storage
-        .from("NadineKollections")
-        .upload(filePath, file);
+        const { error } = await supabase.storage
+          .from("NadineKollections")
+          .upload(filePath, file);
 
-      if (error) {
-        console.error("Storage upload error:", error);
-        toast.error(`Upload failed: ${error.message}`);
-        return;
+        if (error) {
+          console.error(`Upload error for ${file.name}:`, error);
+          toast.error(`Failed to upload ${file.name}`);
+          continue;
+        }
+
+        const { data: urlData } = supabase.storage
+          .from("NadineKollections")
+          .getPublicUrl(filePath);
+
+        if (urlData.publicUrl) {
+          newImageUrls.push(urlData.publicUrl);
+          successCount++;
+        }
+      } catch (error) {
+        console.error(`Upload exception for ${file.name}:`, error);
       }
-
-      const { data: urlData } = supabase.storage
-        .from("NadineKollections")
-        .getPublicUrl(filePath);
-
-      if (!urlData.publicUrl) {
-        toast.error("Failed to get public URL for image");
-        return;
-      }
-
-      setImages([...images, urlData.publicUrl]);
-      toast.success("Image uploaded successfully");
-    } catch (error) {
-      console.error("Upload error:", error);
-      toast.error("Failed to upload image");
-    } finally {
-      setIsUploading(false);
-      // Reset input
-      e.target.value = "";
     }
+
+    if (successCount > 0) {
+      setImages(prev => [...prev, ...newImageUrls]);
+      toast.success(`Successfully uploaded ${successCount} image${successCount > 1 ? 's' : ''}`);
+    }
+
+    setIsUploading(false);
+    // Reset input
+    e.target.value = "";
   };
 
   const removeImage = (index: number) => {
@@ -320,6 +354,12 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
       if (error) throw error;
 
       toast.success(isEditing ? "Product updated successfully!" : "Product created successfully!");
+
+      // Clear draft
+      if (!isEditing) {
+        localStorage.removeItem("productFormDraft");
+      }
+
       router.push("/admin/products");
       router.refresh();
     } catch (error: unknown) {
@@ -335,14 +375,14 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">{isEditing ? "Edit Product" : "Add New Product"}</h1>
-          <p className="text-text-secondary">
+          <h1 className="text-2xl sm:text-3xl font-bold">{isEditing ? "Edit Product" : "Add New Product"}</h1>
+          <p className="text-sm text-text-secondary">
             {isEditing ? "Update product details and inventory." : "Create a new product for your store."}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="gap-2">
@@ -588,7 +628,7 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
                   <>
                     <Upload className="h-8 w-8 text-text-muted" />
                     <span className="mt-2 text-sm text-text-muted">Upload Image</span>
-                    <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isUploading} />
+                    <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} disabled={isUploading} />
                   </>
                 )}
               </label>
