@@ -63,6 +63,9 @@ CREATE TABLE IF NOT EXISTS public.orders (
   payment_reference TEXT, -- Paystack reference
   payment_method TEXT,
   notes TEXT,
+  is_bulk_order BOOLEAN DEFAULT false,
+  bulk_order_details JSONB, -- Stores bulk order metadata (quantity, pricing, etc.)
+  customer_name TEXT, -- For admin dashboard display
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -74,6 +77,8 @@ CREATE TABLE IF NOT EXISTS public.order_items (
   product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
   variant_id UUID REFERENCES public.product_variants(id) ON DELETE SET NULL,
   title TEXT NOT NULL, -- Snapshot of product title at time of order
+  product_title TEXT, -- Alias for title
+  product_image TEXT, -- Snapshot of product image
   quantity INTEGER NOT NULL,
   unit_price NUMERIC(10, 2) NOT NULL,
   total_price NUMERIC(10, 2) NOT NULL,
@@ -134,6 +139,17 @@ CREATE TABLE IF NOT EXISTS public.try_on_sessions (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Admin Invitations (for inviting other admins)
+CREATE TABLE IF NOT EXISTS public.admin_invitations (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  invited_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'expired', 'revoked')),
+  token TEXT UNIQUE NOT NULL,
+  expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '7 days'),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
@@ -144,6 +160,7 @@ ALTER TABLE public.shipping_zones ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.promotions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.banner_ads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.try_on_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_invitations ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
 
@@ -220,4 +237,91 @@ CREATE INDEX IF NOT EXISTS idx_orders_created_at ON public.orders(created_at DES
 CREATE INDEX IF NOT EXISTS idx_orders_payment_status ON public.orders(payment_status);
 CREATE INDEX IF NOT EXISTS idx_orders_user_id ON public.orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_banner_ads_active ON public.banner_ads(is_active, display_order) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_orders_is_bulk ON public.orders(is_bulk_order) WHERE is_bulk_order = true;
+CREATE INDEX IF NOT EXISTS idx_admin_invitations_status ON public.admin_invitations(status) WHERE status = 'pending';
 
+-- RLS Policies for Admin Invitations
+DROP POLICY IF EXISTS "Admins can view all invitations" ON public.admin_invitations;
+CREATE POLICY "Admins can view all invitations" ON public.admin_invitations FOR SELECT USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
+DROP POLICY IF EXISTS "Admins can create invitations" ON public.admin_invitations;
+CREATE POLICY "Admins can create invitations" ON public.admin_invitations FOR INSERT WITH CHECK (
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
+DROP POLICY IF EXISTS "Admins can update invitations" ON public.admin_invitations;
+CREATE POLICY "Admins can update invitations" ON public.admin_invitations FOR UPDATE USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
+-- Stock Management Triggers
+
+-- Function to decrease stock when order item is created
+CREATE OR REPLACE FUNCTION decrease_product_stock()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Only decrease stock for paid orders
+  IF EXISTS (SELECT 1 FROM orders WHERE id = NEW.order_id AND payment_status = 'paid') THEN
+    UPDATE products
+    SET stock = GREATEST(stock - NEW.quantity, 0)
+    WHERE id = NEW.product_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS on_order_item_created ON order_items;
+CREATE TRIGGER on_order_item_created
+  AFTER INSERT ON order_items
+  FOR EACH ROW
+  EXECUTE FUNCTION decrease_product_stock();
+
+-- Function to restore stock when order is cancelled/refunded
+CREATE OR REPLACE FUNCTION restore_product_stock()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF (NEW.status = 'cancelled' OR NEW.status = 'refunded') AND
+     (OLD.status != 'cancelled' AND OLD.status != 'refunded') AND
+     OLD.payment_status = 'paid' THEN
+
+    UPDATE products p
+    SET stock = stock + oi.quantity
+    FROM order_items oi
+    WHERE oi.order_id = NEW.id AND oi.product_id = p.id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS on_order_cancelled ON orders;
+CREATE TRIGGER on_order_cancelled
+  AFTER UPDATE ON orders
+  FOR EACH ROW
+  EXECUTE FUNCTION restore_product_stock();
+
+-- Function to update stock when payment status changes to paid
+CREATE OR REPLACE FUNCTION handle_payment_confirmation()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- When payment status changes from unpaid to paid, decrease stock
+  IF NEW.payment_status = 'paid' AND OLD.payment_status != 'paid' THEN
+    UPDATE products p
+    SET stock = GREATEST(stock - oi.quantity, 0)
+    FROM order_items oi
+    WHERE oi.order_id = NEW.id AND oi.product_id = p.id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS on_payment_confirmed ON orders;
+CREATE TRIGGER on_payment_confirmed
+  AFTER UPDATE ON orders
+  FOR EACH ROW
+  WHEN (NEW.payment_status IS DISTINCT FROM OLD.payment_status)
+  EXECUTE FUNCTION handle_payment_confirmation();
