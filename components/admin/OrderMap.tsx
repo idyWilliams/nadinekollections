@@ -155,7 +155,7 @@ export function OrderMap({ }: OrderMapProps) {
     });
 
     return {
-      type: "FeatureCollection",
+      type: "FeatureCollection" as const,
       features
     };
   }, [orders]);
@@ -278,7 +278,7 @@ export function OrderMap({ }: OrderMapProps) {
               mapRef.current?.easeTo({
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 center: (feature.geometry as any).coordinates,
-                zoom,
+                zoom: zoom ?? undefined,
                 duration: 500
               });
             });
