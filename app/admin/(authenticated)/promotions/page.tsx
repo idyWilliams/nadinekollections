@@ -1,9 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Plus, Search, Trash2, Copy } from "lucide-react";
+
+import { Plus, Trash2, Copy } from "lucide-react";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
+
 
 export default async function AdminPromotionsPage() {
   const supabase = await createClient();
@@ -60,9 +60,8 @@ export default async function AdminPromotionsPage() {
                       {promo.usage_count} / {promo.total_usage_limit || "∞"}
                     </td>
                     <td className="p-4 align-middle">
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                        promo.is_active ? "bg-success/10 text-success" : "bg-gray-100 text-gray-800"
-                      }`}>
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${promo.is_active ? "bg-success/10 text-success" : "bg-gray-100 text-gray-800"
+                        }`}>
                         {promo.is_active ? "Active" : "Inactive"}
                       </span>
                     </td>

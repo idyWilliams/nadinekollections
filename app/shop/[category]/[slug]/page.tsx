@@ -1,11 +1,8 @@
-import { createClient } from "@/lib/supabase/server";
+
 import { ProductDetails } from "@/components/customer/ProductDetails";
 import { ProductCard } from "@/components/customer/ProductCard";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { Header } from "@/components/shared/Header";
-import { Footer } from "@/components/shared/Footer";
-import { WhatsAppButton } from "@/components/shared/WhatsAppButton";
 import { notFound } from "next/navigation";
 import { getProductBySlug, getRelatedProducts } from "@/lib/services/products";
 
@@ -37,7 +34,13 @@ export default async function ProductPage({
           </Link>
         </div>
 
-        <ProductDetails product={product} />
+        <ProductDetails product={{
+          ...product,
+          description: product.description || "",
+          primary_image: product.primary_image || "/placeholder.png",
+          sale_price: product.sale_price === null ? undefined : product.sale_price,
+          category: product.category[0] || "Uncategorized"
+        }} />
 
         {/* Related Products / You May Also Like */}
         {relatedProducts.length > 0 && (

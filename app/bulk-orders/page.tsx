@@ -9,7 +9,7 @@ import { Footer } from "@/components/shared/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
-import { Upload, X } from "lucide-react";
+
 
 const bulkOrderSchema = z.object({
   fullName: z.string().min(2, "Full name is required"),

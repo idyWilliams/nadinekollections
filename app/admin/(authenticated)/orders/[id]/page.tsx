@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
 import { ArrowLeft, MapPin, Package, Printer, Truck } from "lucide-react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { OptimizedImage } from "@/components/ui/optimized-image";
@@ -54,7 +54,7 @@ export default function AdminOrderDetailsPage() {
     const [order, setOrder] = useState<Order | null>(null);
     const [loading, setLoading] = useState(true);
     const supabase = createClient();
-    const router = useRouter();
+
 
     // Modal State
     const [modalState, setModalState] = useState<{
@@ -170,10 +170,10 @@ export default function AdminOrderDetailsPage() {
                             <h1 className="text-2xl font-bold flex items-center gap-3">
                                 Order {order.order_number || order.id.slice(0, 8)}
                                 <span className={`px-3 py-1 rounded-full text-sm font-medium border ${order.status === 'delivered' ? 'bg-success/10 text-success border-success/20' :
-                                        order.status === 'shipped' ? 'bg-blue-100 text-blue-800 border-blue-200' :
-                                            order.status === 'processing' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
-                                                order.status === 'cancelled' || order.status === 'failed' ? 'bg-error/10 text-error border-error/20' :
-                                                    'bg-muted text-text-muted border-border-light'
+                                    order.status === 'shipped' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                                        order.status === 'processing' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+                                            order.status === 'cancelled' || order.status === 'failed' ? 'bg-error/10 text-error border-error/20' :
+                                                'bg-muted text-text-muted border-border-light'
                                     }`}>
                                     {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                                 </span>
@@ -296,7 +296,7 @@ export default function AdminOrderDetailsPage() {
                                 <div className="flex justify-between">
                                     <span className="text-text-secondary">Status</span>
                                     <span className={`font-medium capitalize ${order.payment_status === 'paid' ? 'text-success' :
-                                            order.payment_status === 'failed' ? 'text-error' : 'text-warning-foreground'
+                                        order.payment_status === 'failed' ? 'text-error' : 'text-warning-foreground'
                                         }`}>
                                         {order.payment_status}
                                     </span>

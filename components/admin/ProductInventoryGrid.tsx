@@ -240,7 +240,7 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
           </Button>
           <select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
+            onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'stock-low' | 'stock-high')}
             className="h-9 px-3 rounded-md border border-border-light bg-background text-sm"
           >
             <option value="newest">Newest First (LIFO)</option>
@@ -250,7 +250,7 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
           </select>
           <select
             value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as any)}
+            onChange={(e) => setFilterStatus(e.target.value as 'all' | 'out' | 'low' | 'in' | 'stale')}
             className="h-9 px-3 rounded-md border border-border-light bg-background text-sm"
           >
             <option value="all">All Products</option>
@@ -265,244 +265,250 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
             </Button>
           </Link>
         </div>
-      </div>
+      </div >
 
       {/* Bulk Actions */}
-      {selectedProducts.length > 0 && (
-        <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
-          <span className="text-sm font-medium text-primary ml-2">
-            {selectedProducts.length} selected
-          </span>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="text-error hover:text-error border-error/20 hover:bg-error/10">
-              <Trash className="mr-2 h-4 w-4" /> Delete
-            </Button>
-            <Button variant="outline" size="sm">
-              Set Inactive
-            </Button>
+      {
+        selectedProducts.length > 0 && (
+          <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+            <span className="text-sm font-medium text-primary ml-2">
+              {selectedProducts.length} selected
+            </span>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="text-error hover:text-error border-error/20 hover:bg-error/10">
+                <Trash className="mr-2 h-4 w-4" /> Delete
+              </Button>
+              <Button variant="outline" size="sm">
+                Set Inactive
+              </Button>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Grid View */}
-      {viewMode === 'grid' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredProducts.map((product) => (
-            <div key={product.id} className="group relative bg-surface rounded-xl border border-border-light shadow-sm hover:shadow-md transition-all overflow-hidden">
-              <div className="absolute top-3 left-3 z-10">
-                <button onClick={() => toggleSelect(product.id)} className="text-white drop-shadow-md">
-                  {selectedProducts.includes(product.id) ? <CheckSquare className="h-5 w-5 text-primary fill-surface" /> : <Square className="h-5 w-5" />}
-                </button>
-              </div>
-              <div className="relative aspect-square bg-muted overflow-hidden">
-                <Image
-                  src={product.image}
-                  alt={product.title}
-                  fill
-                  className="object-cover group-hover:scale-105 transition-transform duration-500"
-                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 33vw, 25vw"
-                />
-              </div>
-              <div className="p-4">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h3 className="font-medium truncate pr-2" title={product.title}>{product.title}</h3>
-                    <p className="text-xs text-text-secondary">{product.category}</p>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => router.push(`/admin/products/${product.id}/edit`)}>
-                        <Edit className="mr-2 h-4 w-4" /> Edit Product
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => toggleProductStatus(product.id, product.is_active)}>
-                        {product.is_active ? (
-                          <>
-                            <EyeOff className="mr-2 h-4 w-4" /> Hide Product
-                          </>
-                        ) : (
-                          <>
-                            <Eye className="mr-2 h-4 w-4" /> Show Product
-                          </>
-                        )}
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-error" onClick={() => deleteProduct(product.id)}>
-                        <Trash2 className="mr-2 h-4 w-4" /> Delete Product
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                <div className="flex items-center justify-between mt-4">
-                  <span className="font-bold">{formatCurrency(product.price)}</span>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs px-2 py-1 rounded-full ${product.stock < 5 ? 'bg-error/10 text-error' : 'bg-muted text-text-secondary'}`}>
-                      {product.stock} left
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* List View */}
-      {viewMode === 'list' && (
-        <div className="rounded-xl border border-border-light bg-surface overflow-hidden shadow-sm">
-          {/* Desktop Table */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-muted/50 text-text-secondary font-medium border-b border-border-light">
-                <tr>
-                  <th className="w-10 px-4 py-3">
-                    <button onClick={toggleSelectAll}>
-                      {selectedProducts.length === filteredProducts.length && filteredProducts.length > 0 ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4" />}
-                    </button>
-                  </th>
-                  <th className="px-4 py-3">Product</th>
-                  <th className="px-4 py-3">Category</th>
-                  <th className="px-4 py-3">Price</th>
-                  <th className="px-4 py-3">Stock Details</th>
-                  <th className="px-4 py-3">Created</th>
-                  <th className="px-4 py-3">Featured</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-light">
-                {filteredProducts.map((product) => (
-                  <tr key={product.id} className={`hover:bg-muted/50 transition-colors ${selectedProducts.includes(product.id) ? 'bg-primary/5' : ''} ${product.stock === 0 ? 'bg-red-50 hover:bg-red-100' : ''}`}>
-                    <td className="px-4 py-3">
-                      <button onClick={() => toggleSelect(product.id)}>
-                        {selectedProducts.includes(product.id) ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4 text-text-muted" />}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="relative h-10 w-10 rounded-md bg-muted overflow-hidden">
-                          <Image
-                            src={product.image}
-                            alt={product.title}
-                            fill
-                            className="object-cover"
-                            sizes="40px"
-                          />
-                        </div>
-                        <span className="font-medium">{product.title}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">{product.category}</td>
-                    <td className="px-4 py-3 font-medium">{formatCurrency(product.price)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col gap-1">
-                        <span className={`${product.stock < 5 ? 'text-error font-bold' : ''}`}>{product.stock} units</span>
-                        <div className="flex gap-1">
-                          {product.stock === 0 ? (
-                            <Badge variant="destructive" className="h-5 text-[10px] px-1">Out of Stock</Badge>
-                          ) : product.stock < 10 ? (
-                            <Badge variant="warning" className="h-5 text-[10px] px-1 bg-amber-500 text-white hover:bg-amber-600">Low Stock</Badge>
-                          ) : (
-                            <Badge variant="outline" className="h-5 text-[10px] px-1 text-green-600 border-green-600">In Stock</Badge>
-                          )}
-                          {product.isStale && (
-                            <Badge variant="secondary" className="h-5 text-[10px] px-1 bg-gray-200 text-gray-700" title="No orders in 30 days">Stale</Badge>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-text-secondary">
-                      {new Date(product.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => toggleFeatured?.(product.id, product.is_featured)}
-                        className={`p-1 rounded hover:bg-muted transition-colors ${product.is_featured ? 'text-amber-500' : 'text-gray-300'
-                          }`}
-                        title={product.is_featured ? "Remove from featured" : "Add to featured"}
-                      >
-                        <svg className="h-5 w-5" fill={product.is_featured ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                        </svg>
-                      </button>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={product.status === 'Active' ? 'success' : 'secondary'}>{product.status}</Badge>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => router.push(`/admin/products/${product.id}/edit`)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-error hover:text-error hover:bg-error/10" onClick={() => deleteProduct(product.id)}>
-                          <Trash className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile Card View */}
-          <div className="md:hidden space-y-4 p-4">
+      {
+        viewMode === 'grid' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredProducts.map((product) => (
-              <div key={product.id} className={`bg-surface rounded-lg border border-border-light p-4 shadow-sm ${selectedProducts.includes(product.id) ? 'ring-2 ring-primary/20' : ''}`}>
-                <div className="flex gap-4 mb-3">
-                  <div className="relative h-16 w-16 rounded-md bg-muted overflow-hidden flex-shrink-0">
-                    <Image
-                      src={product.image}
-                      alt={product.title}
-                      fill
-                      className="object-cover"
-                      sizes="64px"
-                    />
-                    <button
-                      onClick={() => toggleSelect(product.id)}
-                      className="absolute top-1 left-1 bg-black/20 rounded p-0.5"
-                    >
-                      {selectedProducts.includes(product.id) ? <CheckSquare className="h-4 w-4 text-primary fill-white" /> : <Square className="h-4 w-4 text-white" />}
-                    </button>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-start">
-                      <h3 className="font-medium truncate pr-2">{product.title}</h3>
-                      <Badge variant={product.status === 'Active' ? 'success' : 'secondary'} className="text-[10px] h-5">{product.status}</Badge>
-                    </div>
-                    <p className="text-sm text-text-secondary">{product.category}</p>
-                    <p className="font-bold text-primary mt-1">{formatCurrency(product.price)}</p>
-                  </div>
+              <div key={product.id} className="group relative bg-surface rounded-xl border border-border-light shadow-sm hover:shadow-md transition-all overflow-hidden">
+                <div className="absolute top-3 left-3 z-10">
+                  <button onClick={() => toggleSelect(product.id)} className="text-white drop-shadow-md">
+                    {selectedProducts.includes(product.id) ? <CheckSquare className="h-5 w-5 text-primary fill-surface" /> : <Square className="h-5 w-5" />}
+                  </button>
                 </div>
-
-                <div className="flex items-center justify-between pt-3 border-t border-border-light">
-                  <div className="text-sm flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                      <span>Stock: <span className={`${product.stock < 5 ? 'text-error font-bold' : ''}`}>{product.stock}</span></span>
-                      {product.stock === 0 && <span className="text-xs text-error font-medium">(Out)</span>}
-                      {product.isStale && <span className="text-xs text-text-secondary bg-muted px-1 rounded">Stale</span>}
+                <div className="relative aspect-square bg-muted overflow-hidden">
+                  <Image
+                    src={product.image}
+                    alt={product.title}
+                    fill
+                    className="object-cover group-hover:scale-105 transition-transform duration-500"
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 33vw, 25vw"
+                  />
+                </div>
+                <div className="p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h3 className="font-medium truncate pr-2" title={product.title}>{product.title}</h3>
+                      <p className="text-xs text-text-secondary">{product.category}</p>
                     </div>
-                    <span className="text-xs text-text-secondary">Added: {new Date(product.created_at).toLocaleDateString()}</span>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuItem onClick={() => router.push(`/admin/products/${product.id}/edit`)}>
+                          <Edit className="mr-2 h-4 w-4" /> Edit Product
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => toggleProductStatus(product.id, product.is_active)}>
+                          {product.is_active ? (
+                            <>
+                              <EyeOff className="mr-2 h-4 w-4" /> Hide Product
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="mr-2 h-4 w-4" /> Show Product
+                            </>
+                          )}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-error" onClick={() => deleteProduct(product.id)}>
+                          <Trash2 className="mr-2 h-4 w-4" /> Delete Product
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="h-8" onClick={() => router.push(`/admin/products/${product.id}/edit`)}>
-                      <Edit className="h-3 w-3 mr-1" /> Edit
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-error">
-                      <Trash className="h-4 w-4" />
-                    </Button>
+                  <div className="flex items-center justify-between mt-4">
+                    <span className="font-bold">{formatCurrency(product.price)}</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-2 py-1 rounded-full ${product.stock < 5 ? 'bg-error/10 text-error' : 'bg-muted text-text-secondary'}`}>
+                        {product.stock} left
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+
+      {/* List View */}
+      {
+        viewMode === 'list' && (
+          <div className="rounded-xl border border-border-light bg-surface overflow-hidden shadow-sm">
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-muted/50 text-text-secondary font-medium border-b border-border-light">
+                  <tr>
+                    <th className="w-10 px-4 py-3">
+                      <button onClick={toggleSelectAll}>
+                        {selectedProducts.length === filteredProducts.length && filteredProducts.length > 0 ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4" />}
+                      </button>
+                    </th>
+                    <th className="px-4 py-3">Product</th>
+                    <th className="px-4 py-3">Category</th>
+                    <th className="px-4 py-3">Price</th>
+                    <th className="px-4 py-3">Stock Details</th>
+                    <th className="px-4 py-3">Created</th>
+                    <th className="px-4 py-3">Featured</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border-light">
+                  {filteredProducts.map((product) => (
+                    <tr key={product.id} className={`hover:bg-muted/50 transition-colors ${selectedProducts.includes(product.id) ? 'bg-primary/5' : ''} ${product.stock === 0 ? 'bg-red-50 hover:bg-red-100' : ''}`}>
+                      <td className="px-4 py-3">
+                        <button onClick={() => toggleSelect(product.id)}>
+                          {selectedProducts.includes(product.id) ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4 text-text-muted" />}
+                        </button>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="relative h-10 w-10 rounded-md bg-muted overflow-hidden">
+                            <Image
+                              src={product.image}
+                              alt={product.title}
+                              fill
+                              className="object-cover"
+                              sizes="40px"
+                            />
+                          </div>
+                          <span className="font-medium">{product.title}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">{product.category}</td>
+                      <td className="px-4 py-3 font-medium">{formatCurrency(product.price)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col gap-1">
+                          <span className={`${product.stock < 5 ? 'text-error font-bold' : ''}`}>{product.stock} units</span>
+                          <div className="flex gap-1">
+                            {product.stock === 0 ? (
+                              <Badge variant="destructive" className="h-5 text-[10px] px-1">Out of Stock</Badge>
+                            ) : product.stock < 10 ? (
+                              <Badge variant="warning" className="h-5 text-[10px] px-1 bg-amber-500 text-white hover:bg-amber-600">Low Stock</Badge>
+                            ) : (
+                              <Badge variant="outline" className="h-5 text-[10px] px-1 text-green-600 border-green-600">In Stock</Badge>
+                            )}
+                            {product.isStale && (
+                              <Badge variant="secondary" className="h-5 text-[10px] px-1 bg-gray-200 text-gray-700" title="No orders in 30 days">Stale</Badge>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-text-secondary">
+                        {new Date(product.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => toggleFeatured?.(product.id, product.is_featured)}
+                          className={`p-1 rounded hover:bg-muted transition-colors ${product.is_featured ? 'text-amber-500' : 'text-gray-300'
+                            }`}
+                          title={product.is_featured ? "Remove from featured" : "Add to featured"}
+                        >
+                          <svg className="h-5 w-5" fill={product.is_featured ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                          </svg>
+                        </button>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge variant={product.status === 'Active' ? 'success' : 'secondary'}>{product.status}</Badge>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => router.push(`/admin/products/${product.id}/edit`)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-error hover:text-error hover:bg-error/10" onClick={() => deleteProduct(product.id)}>
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-4 p-4">
+              {filteredProducts.map((product) => (
+                <div key={product.id} className={`bg-surface rounded-lg border border-border-light p-4 shadow-sm ${selectedProducts.includes(product.id) ? 'ring-2 ring-primary/20' : ''}`}>
+                  <div className="flex gap-4 mb-3">
+                    <div className="relative h-16 w-16 rounded-md bg-muted overflow-hidden flex-shrink-0">
+                      <Image
+                        src={product.image}
+                        alt={product.title}
+                        fill
+                        className="object-cover"
+                        sizes="64px"
+                      />
+                      <button
+                        onClick={() => toggleSelect(product.id)}
+                        className="absolute top-1 left-1 bg-black/20 rounded p-0.5"
+                      >
+                        {selectedProducts.includes(product.id) ? <CheckSquare className="h-4 w-4 text-primary fill-white" /> : <Square className="h-4 w-4 text-white" />}
+                      </button>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start">
+                        <h3 className="font-medium truncate pr-2">{product.title}</h3>
+                        <Badge variant={product.status === 'Active' ? 'success' : 'secondary'} className="text-[10px] h-5">{product.status}</Badge>
+                      </div>
+                      <p className="text-sm text-text-secondary">{product.category}</p>
+                      <p className="font-bold text-primary mt-1">{formatCurrency(product.price)}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-border-light">
+                    <div className="text-sm flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <span>Stock: <span className={`${product.stock < 5 ? 'text-error font-bold' : ''}`}>{product.stock}</span></span>
+                        {product.stock === 0 && <span className="text-xs text-error font-medium">(Out)</span>}
+                        {product.isStale && <span className="text-xs text-text-secondary bg-muted px-1 rounded">Stale</span>}
+                      </div>
+                      <span className="text-xs text-text-secondary">Added: {new Date(product.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" className="h-8" onClick={() => router.push(`/admin/products/${product.id}/edit`)}>
+                        <Edit className="h-3 w-3 mr-1" /> Edit
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-error">
+                        <Trash className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      }
+    </div >
   );
 }

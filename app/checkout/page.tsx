@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { formatCurrency } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { CheckCircle, CreditCard, MapPin, Truck, Tag, X } from "lucide-react";
+import { CheckCircle, CreditCard, MapPin, Tag, X } from "lucide-react";
 import Image from "next/image";
 import { useAfricaPay } from "@use-africa-pay/core";
 import { InfoModal } from "@/components/ui/info-modal";
@@ -25,6 +25,7 @@ export default function CheckoutPage() {
   const supabase = createClient();
   const [createAccount, setCreateAccount] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [paymentSettings, setPaymentSettings] = useState<any>(null);
 
   // Modal State
@@ -91,7 +92,7 @@ export default function CheckoutPage() {
 
       setAppliedPromo(data);
       showModal("success", "Promo Applied", `You saved ${formatCurrency(data.discount)}`);
-    } catch (error) {
+    } catch {
       showModal("error", "Error", "Failed to apply promo code");
     } finally {
       setPromoLoading(false);
@@ -139,7 +140,7 @@ export default function CheckoutPage() {
     checkUser();
   }, [supabase]);
 
-  const { initializePayment, loading: isLoading, error } = useAfricaPay();
+  const { initializePayment } = useAfricaPay();
 
   const handleInitiatePayment = async () => {
     if (!paymentSettings) {
@@ -226,6 +227,7 @@ export default function CheckoutPage() {
       }
 
       // 3. Initialize Payment with useAfricaPay
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const config: any = {
         provider: paymentSettings.provider,
         amount: calculateTotal() * 100, // Amount in kobo
@@ -236,7 +238,7 @@ export default function CheckoutPage() {
           name: `${formData.firstName} ${formData.lastName}`.trim(),
           phonenumber: formData.phone,
         },
-        onSuccess: async (response: any) => {
+        onSuccess: async (response: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
           console.log('Payment successful:', response);
 
           await supabase

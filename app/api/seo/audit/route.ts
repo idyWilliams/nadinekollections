@@ -80,7 +80,7 @@ export async function GET() {
         details: `${imagesWithoutAlt} images missing alt text out of ${images.length}`,
       });
       if (!altTextOptimized) score -= 15;
-    } catch (error) {
+    } catch {
       checks.push({ task: "Meta tags optimized", done: false, details: "Error checking meta tags" });
       checks.push({ task: "Alt text on images", done: false, details: "Error checking images" });
       score -= 35;

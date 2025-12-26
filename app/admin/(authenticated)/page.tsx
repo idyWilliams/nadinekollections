@@ -96,10 +96,9 @@ export default async function AdminDashboard() {
 
   // Process Recent Orders
   const recentOrders = recentOrdersData?.map(order => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const profile = Array.isArray(order.profiles) ? order.profiles[0] : order.profiles;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const fullName = (profile as any)?.full_name || order.customer_name || "Guest User";
+
+    const fullName = profile?.full_name || order.customer_name || "Guest User";
 
     return {
       id: order.id,
@@ -114,8 +113,8 @@ export default async function AdminDashboard() {
   // Process Map Data (State distribution)
   const stateCounts: Record<string, number> = {};
   mapDataRaw?.forEach(order => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const state = (order.shipping_address as any)?.state;
+
+    const state = order.shipping_address?.state;
     if (state) {
       // Simple normalization
       const normalizedState = state.trim().replace(/ state$/i, "");
@@ -135,14 +134,17 @@ export default async function AdminDashboard() {
     .lt("inventory_count", 5)
     .limit(5);
 
-  const lowStockItems = lowStockItemsData?.map(item => ({
-    id: item.id,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    title: `${(item.products as any)?.title} - ${item.name}`,
-    stock: item.inventory_count,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    image: (item.products as any)?.primary_image || "/placeholder.png"
-  })) || [];
+  const lowStockItems = lowStockItemsData?.map(item => {
+    const product = Array.isArray(item.products) ? item.products[0] : item.products;
+    return {
+      id: item.id,
+
+      title: `${product?.title} - ${item.name}`,
+      stock: item.inventory_count,
+
+      image: product?.primary_image || "/placeholder.png"
+    };
+  }) || [];
 
 
   // Stats Array

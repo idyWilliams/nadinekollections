@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
-import { Search, Menu, X } from "lucide-react";
+import { Search, Menu } from "lucide-react";
 import { NotificationCenter } from "@/components/shared/NotificationCenter";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";

@@ -18,7 +18,10 @@ export default async function AdminProductsPage() {
     stock: product.stock,
     image: product.primary_image || product.images?.[0] || '/placeholder.png',
     status: product.is_active ? 'Active' : 'Inactive',
-    is_active: product.is_active
+    is_active: product.is_active,
+    is_featured: product.is_featured || false,
+    created_at: product.created_at,
+    stockStatus: (product.stock === 0 ? 'out' : product.stock < 10 ? 'low' : 'in') as 'out' | 'low' | 'in',
   })) || [];
 
   return (

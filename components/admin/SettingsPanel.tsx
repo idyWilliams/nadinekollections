@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { createClient } from "@/lib/supabase/client";
-import { UserPlus, Shield, CreditCard, Bell, Store, Check, AlertCircle, Activity, Lock } from "lucide-react";
+import { UserPlus, Lock } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +19,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { motion, AnimatePresence } from "framer-motion";
+
 import { cn } from "@/lib/utils";
 
 interface AdminProfile {
@@ -166,8 +166,12 @@ export function SettingsPanel() {
         if (!response.ok) throw new Error(data.error);
         alert(data.message);
         fetchAdmins();
-      } catch (error: any) {
-        alert(error.message);
+      } catch (error: unknown) {
+        if (error instanceof Error) {
+          alert(error.message);
+        } else {
+          alert('An unknown error occurred');
+        }
       } finally {
         setLoading(false);
       }
@@ -186,8 +190,12 @@ export function SettingsPanel() {
         if (!response.ok) throw new Error(data.error);
         alert(data.message);
         fetchAdmins();
-      } catch (error: any) {
-        alert(error.message);
+      } catch (error: unknown) {
+        if (error instanceof Error) {
+          alert(error.message);
+        } else {
+          alert('An unknown error occurred');
+        }
       } finally {
         setLoading(false);
       }

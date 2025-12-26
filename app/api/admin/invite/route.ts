@@ -78,7 +78,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: "Existing user promoted to Admin" });
     } else {
         // User doesn't exist, invite them
-        const { data, error: inviteError } = await adminAuthClient.auth.admin.inviteUserByEmail(
+        const { error: inviteError } = await adminAuthClient.auth.admin.inviteUserByEmail(
             email,
             {
                 data: { role: 'admin' },

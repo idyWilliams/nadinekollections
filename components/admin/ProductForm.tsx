@@ -19,7 +19,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { ProductCard } from "@/components/customer/ProductCard";
-import { Switch } from "@/components/ui/switch";
+
 
 interface ProductFormProps {
   initialData?: {
@@ -162,7 +162,7 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
         tags: [...new Set([...autoTags, ...existingUserTags])]
       }));
     }
-  }, [formData.title, formData.description, formData.category, isEditing]);
+  }, [formData.title, formData.description, formData.category, isEditing, formData.tags]);
 
   const [isUploading, setIsUploading] = useState(false);
 
@@ -544,7 +544,7 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
                         fill
                         className="object-cover"
                         sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw"
-                        onError={(e) => {
+                        onError={() => {
                           // Note: Next.js Image component doesn't have simple onError like img
                           // We might need a separate state or wrapper for fallback,
                           // but for now relying on valid URLs.

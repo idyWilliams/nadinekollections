@@ -21,10 +21,9 @@ export default async function AdminOrdersPage() {
 
   // Format orders for the table
   const formattedOrders = orders?.map(order => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const profile = Array.isArray(order.profiles) ? order.profiles[0] : order.profiles;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const fullName = (profile as any)?.full_name || order.customer_name || "Guest User";
+
+    const fullName = profile?.full_name || order.customer_name || "Guest User";
 
     return {
       id: order.id,

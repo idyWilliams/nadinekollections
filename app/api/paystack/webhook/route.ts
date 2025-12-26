@@ -33,11 +33,11 @@ export async function POST(request: Request) {
 
     // Handle successful payment
     if (event.event === "charge.success") {
-      const { reference, metadata } = event.data;
+      const { reference } = event.data;
 
       // Extract order ID from reference (NK-{orderId}-{timestamp})
       // Or use metadata if we passed it
-      const parts = reference.split("-");
+
       // Assuming format NK-{orderId}-{timestamp}
       // If orderId contains hyphens (UUID), this split might be tricky.
       // Better to rely on metadata or a more robust parsing if using UUIDs.

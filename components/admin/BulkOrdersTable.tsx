@@ -79,10 +79,9 @@ export function BulkOrdersTable({ orders: initialOrders }: BulkOrdersTableProps)
       if (error) throw error;
 
       return data.map(order => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const profile = Array.isArray(order.profiles) ? order.profiles[0] : order.profiles;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const fullName = (profile as any)?.full_name || order.customer_name || "Guest User";
+
+        const fullName = profile?.full_name || order.customer_name || "Guest User";
 
         return {
           id: order.id,
@@ -167,7 +166,7 @@ export function BulkOrdersTable({ orders: initialOrders }: BulkOrdersTableProps)
     router.push(`/admin/orders/${orderId}`);
   };
 
-  const handlePrintLabel = (orderId: string) => {
+  const handlePrintLabel = () => {
     // In a real app, this would generate a PDF or open a print dialog
     window.print();
   };
@@ -270,9 +269,9 @@ export function BulkOrdersTable({ orders: initialOrders }: BulkOrdersTableProps)
                   <td className="p-4 align-middle">{order.items}</td>
                   <td className="p-4 align-middle">
                     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors ${order.status === "Delivered" || order.status === "delivered" ? "bg-success/10 text-success" :
-                        order.status === "Shipped" || order.status === "shipped" ? "bg-blue-100 text-blue-800" :
-                          order.status === "Processing" || order.status === "processing" ? "bg-yellow-100 text-yellow-800" :
-                            "bg-gray-100 text-gray-800"
+                      order.status === "Shipped" || order.status === "shipped" ? "bg-blue-100 text-blue-800" :
+                        order.status === "Processing" || order.status === "processing" ? "bg-yellow-100 text-yellow-800" :
+                          "bg-gray-100 text-gray-800"
                       }`}>
                       {order.status}
                     </span>
@@ -294,7 +293,7 @@ export function BulkOrdersTable({ orders: initialOrders }: BulkOrdersTableProps)
                         <DropdownMenuItem onClick={() => handleMarkShipped(order.id)}>
                           <Truck className="mr-2 h-4 w-4" /> Mark as Shipped
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handlePrintLabel(order.id)}>
+                        <DropdownMenuItem onClick={() => handlePrintLabel()}>
                           <Printer className="mr-2 h-4 w-4" /> Print Label
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
@@ -326,9 +325,9 @@ export function BulkOrdersTable({ orders: initialOrders }: BulkOrdersTableProps)
                 </div>
               </div>
               <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${order.status === "Delivered" || order.status === "delivered" ? "bg-success/10 text-success" :
-                  order.status === "Shipped" || order.status === "shipped" ? "bg-blue-100 text-blue-800" :
-                    order.status === "Processing" || order.status === "processing" ? "bg-yellow-100 text-yellow-800" :
-                      "bg-gray-100 text-gray-800"
+                order.status === "Shipped" || order.status === "shipped" ? "bg-blue-100 text-blue-800" :
+                  order.status === "Processing" || order.status === "processing" ? "bg-yellow-100 text-yellow-800" :
+                    "bg-gray-100 text-gray-800"
                 }`}>
                 {order.status}
               </span>
@@ -367,7 +366,7 @@ export function BulkOrdersTable({ orders: initialOrders }: BulkOrdersTableProps)
                   <DropdownMenuItem onClick={() => handleMarkShipped(order.id)}>
                     <Truck className="mr-2 h-4 w-4" /> Mark as Shipped
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handlePrintLabel(order.id)}>
+                  <DropdownMenuItem onClick={() => handlePrintLabel()}>
                     <Printer className="mr-2 h-4 w-4" /> Print Label
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />

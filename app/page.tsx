@@ -1,7 +1,7 @@
 import { HeroBanner } from "@/components/customer/HeroBanner";
 import { ProductCard } from "@/components/customer/ProductCard";
 import { Button } from "@/components/ui/button";
-import { WhatsAppButton } from "@/components/shared/WhatsAppButton";
+
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { getFeaturedProducts } from "@/lib/services/products";

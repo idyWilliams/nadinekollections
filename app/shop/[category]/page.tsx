@@ -1,9 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { ProductCard } from "@/components/customer/ProductCard";
-import { notFound } from "next/navigation";
-import { Header } from "@/components/shared/Header";
-import { Footer } from "@/components/shared/Footer";
-import { WhatsAppButton } from "@/components/shared/WhatsAppButton";
+
 import { Pagination } from "@/components/shared/Pagination";
 
 // Helper to capitalize category for display/query

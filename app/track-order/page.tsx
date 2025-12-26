@@ -4,8 +4,7 @@ import { Suspense, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Search, Package, Truck, CheckCircle, AlertCircle, XCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatCurrency } from "@/lib/utils";
@@ -28,7 +27,7 @@ function TrackOrderContent() {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [hasSearched, setHasSearched] = useState(false);
+
 
   const supabase = createClient();
 
@@ -39,7 +38,7 @@ function TrackOrderContent() {
     setLoading(true);
     setError("");
     setOrder(null);
-    setHasSearched(true);
+
 
     try {
       // Search by order_number (e.g., ORD-12345) or ID
@@ -74,20 +73,7 @@ function TrackOrderContent() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "delivered":
-        return "bg-success/10 text-success border-success/20";
-      case "shipped":
-        return "bg-primary/10 text-primary border-primary/20";
-      case "cancelled":
-        return "bg-error/10 text-error border-error/20";
-      case "processing":
-        return "bg-warning/10 text-warning-foreground border-warning/20";
-      default:
-        return "bg-muted text-text-muted border-border-light";
-    }
-  };
+
 
   return (
     <div className="min-h-screen bg-background py-12 px-4 md:px-8 flex flex-col items-center justify-center">

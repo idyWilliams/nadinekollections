@@ -29,7 +29,7 @@ const STATE_COORDINATES: Record<string, { lat: number; lng: number }> = {
   "ogun": { lat: 7.1557, lng: 3.3451 },
   "delta": { lat: 5.5325, lng: 5.8987 },
   "edo": { lat: 6.3350, lng: 5.6037 },
-  "ogun": { lat: 7.1557, lng: 3.3451 },
+
   "anambra": { lat: 6.2209, lng: 6.9370 },
   "abia": { lat: 5.5322, lng: 7.5001 },
   "imo": { lat: 5.5720, lng: 7.0588 },
@@ -65,9 +65,10 @@ interface OrderMapProps {
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
-export function OrderMap({ data }: OrderMapProps) {
+export function OrderMap({ }: OrderMapProps) {
   const mapRef = useRef<MapRef>(null);
   const supabase = createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewState, setViewState] = useState({
@@ -78,6 +79,7 @@ export function OrderMap({ data }: OrderMapProps) {
   const [hoverInfo, setHoverInfo] = useState<{
     longitude: number;
     latitude: number;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     feature: any;
   } | null>(null);
   const [mapStyle, setMapStyle] = useState("mapbox://styles/mapbox/light-v11");
@@ -118,6 +120,7 @@ export function OrderMap({ data }: OrderMapProps) {
 
   // Generate GeoJSON data from real orders
   const mapData = useMemo(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const features: any[] = [];
 
     orders.forEach((order) => {
@@ -158,6 +161,7 @@ export function OrderMap({ data }: OrderMapProps) {
   }, [orders]);
 
   // Cluster layer configuration
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const clusterLayer: any = {
     id: "clusters",
     type: "circle",
@@ -185,6 +189,7 @@ export function OrderMap({ data }: OrderMapProps) {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const clusterCountLayer: any = {
     id: "cluster-count",
     type: "symbol",
@@ -197,6 +202,7 @@ export function OrderMap({ data }: OrderMapProps) {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const unclusteredPointLayer: any = {
     id: "unclustered-point",
     type: "circle",
@@ -270,6 +276,7 @@ export function OrderMap({ data }: OrderMapProps) {
               if (err) return;
 
               mapRef.current?.easeTo({
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 center: (feature.geometry as any).coordinates,
                 zoom,
                 duration: 500
@@ -324,8 +331,8 @@ export function OrderMap({ data }: OrderMapProps) {
                       ₦{hoverInfo.feature.properties.totalAmount?.toLocaleString()}
                     </div>
                     <div className={`text-xs font-medium capitalize ${hoverInfo.feature.properties.status === 'delivered' ? 'text-green-600' :
-                        hoverInfo.feature.properties.status === 'processing' ? 'text-blue-600' :
-                          'text-amber-600'
+                      hoverInfo.feature.properties.status === 'processing' ? 'text-blue-600' :
+                        'text-amber-600'
                       }`}>
                       {hoverInfo.feature.properties.status}
                     </div>

@@ -144,7 +144,7 @@ export function MarketingPanel() {
 
       toast.success(`Promo ${!currentStatus ? "activated" : "deactivated"}`);
       fetchPromotions();
-    } catch (error) {
+    } catch {
       toast.error("Failed to update promo");
     }
   };
@@ -161,7 +161,7 @@ export function MarketingPanel() {
       } else {
         throw new Error("Audit failed");
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to run SEO audit");
     } finally {
       setRunningAudit(false);
@@ -214,9 +214,8 @@ export function MarketingPanel() {
             </div>
             <div className="flex items-end gap-2">
               <h3 className="text-2xl font-bold">{seoScore}/100</h3>
-              <span className={`text-xs font-medium mb-1 ${
-                seoScore >= 80 ? 'text-success' : seoScore >= 50 ? 'text-warning' : 'text-error'
-              }`}>
+              <span className={`text-xs font-medium mb-1 ${seoScore >= 80 ? 'text-success' : seoScore >= 50 ? 'text-warning' : 'text-error'
+                }`}>
                 {seoScore >= 80 ? 'Good' : seoScore >= 50 ? 'Fair' : 'Poor'}
               </span>
             </div>
@@ -397,9 +396,8 @@ export function MarketingPanel() {
               {seoChecks.map((item, i) => (
                 <div key={i} className="flex items-start gap-3">
                   <div
-                    className={`h-5 w-5 rounded-full flex items-center justify-center border flex-shrink-0 ${
-                      item.done ? "bg-success border-success text-white" : "border-border-light"
-                    }`}
+                    className={`h-5 w-5 rounded-full flex items-center justify-center border flex-shrink-0 ${item.done ? "bg-success border-success text-white" : "border-border-light"
+                      }`}
                   >
                     {item.done && <CheckSquare className="h-3 w-3" />}
                   </div>
