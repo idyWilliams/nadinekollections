@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createStaticClient } from '@/lib/supabase/server';
 
 export interface Product {
   id: string;
@@ -35,7 +35,7 @@ export interface ProductFilters {
  */
 export async function getFeaturedProducts(limit = 8): Promise<Product[]> {
   try {
-    const supabase = await createClient();
+    const supabase = createStaticClient();
 
     const { data, error } = await supabase
       .from("products")
@@ -66,7 +66,7 @@ export async function getRelatedProducts(
   limit = 4
 ): Promise<Product[]> {
   try {
-    const supabase = await createClient();
+    const supabase = createStaticClient();
 
     // Convert category to array if string
     const categoryArray = Array.isArray(category) ? category : [category];
@@ -96,7 +96,7 @@ export async function getRelatedProducts(
  */
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   try {
-    const supabase = await createClient();
+    const supabase = createStaticClient();
 
     const { data, error } = await supabase
       .from("products")
@@ -124,7 +124,7 @@ export async function getProductsByCategory(
   filters: ProductFilters = {}
 ): Promise<{ products: Product[]; count: number }> {
   try {
-    const supabase = await createClient();
+    const supabase = createStaticClient();
 
     const {
       category,
