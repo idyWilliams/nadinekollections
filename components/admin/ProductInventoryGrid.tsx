@@ -29,6 +29,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -234,31 +243,77 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
               <LayoutGrid className="h-4 w-4" />
             </Button>
           </div>
-          <Button variant="outline" size="sm" className="gap-2">
-            <Filter className="h-4 w-4" />
-            Filter
-          </Button>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'stock-low' | 'stock-high')}
-            className="h-9 px-3 rounded-md border border-border-light bg-background text-sm"
-          >
-            <option value="newest">Newest First (LIFO)</option>
-            <option value="oldest">Oldest First (FIFO)</option>
-            <option value="stock-low">Stock: Low to High</option>
-            <option value="stock-high">Stock: High to Low</option>
-          </select>
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as 'all' | 'out' | 'low' | 'in' | 'stale')}
-            className="h-9 px-3 rounded-md border border-border-light bg-background text-sm"
-          >
-            <option value="all">All Products</option>
-            <option value="out">Out of Stock</option>
-            <option value="low">Low Stock</option>
-            <option value="in">In Stock</option>
-            <option value="stale">Stale Products</option>
-          </select>
+
+          {/* Mobile Filter Trigger */}
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2 md:hidden">
+                <Filter className="h-4 w-4" />
+                Filter
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Filter Products</DialogTitle>
+                <DialogDescription>
+                  Refine your product list.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Sort By</Label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'stock-low' | 'stock-high')}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="newest">Newest First (LIFO)</option>
+                    <option value="oldest">Oldest First (FIFO)</option>
+                    <option value="stock-low">Stock: Low to High</option>
+                    <option value="stock-high">Stock: High to Low</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value as 'all' | 'out' | 'low' | 'in' | 'stale')}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="all">All Products</option>
+                    <option value="out">Out of Stock</option>
+                    <option value="low">Low Stock</option>
+                    <option value="in">In Stock</option>
+                    <option value="stale">Stale Products</option>
+                  </select>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Desktop Filters */}
+          <div className="hidden md:flex items-center gap-2">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'stock-low' | 'stock-high')}
+              className="h-9 px-3 rounded-md border border-border-light bg-background text-sm"
+            >
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="stock-low">Stock: Low</option>
+              <option value="stock-high">Stock: High</option>
+            </select>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as 'all' | 'out' | 'low' | 'in' | 'stale')}
+              className="h-9 px-3 rounded-md border border-border-light bg-background text-sm"
+            >
+              <option value="all">All</option>
+              <option value="out">Out</option>
+              <option value="low">Low</option>
+              <option value="in">In</option>
+            </select>
+          </div>
           <Link href="/admin/products/new">
             <Button className="btn-primary h-9">
               <Plus className="mr-2 h-4 w-4" /> Add Product
