@@ -137,7 +137,9 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
       const generatedTags = new Set<string>();
 
       // Add categories as tags
-      formData.category.forEach(cat => generatedTags.add(cat.toLowerCase()));
+      if (Array.isArray(formData.category)) {
+        formData.category.forEach(cat => generatedTags.add(cat.toLowerCase()));
+      }
 
       // Extract meaningful words from title (min 3 chars, exclude common words)
       const commonWords = ['the', 'and', 'for', 'with', 'from', 'this', 'that', 'new'];
@@ -462,7 +464,7 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="w-full justify-between font-normal">
-                      {formData.category.length > 0 ? formData.category.join(", ") : "Select Categories"}
+                      {Array.isArray(formData.category) && formData.category.length > 0 ? formData.category.join(", ") : "Select Categories"}
                       <ChevronDown className="h-4 w-4 opacity-50" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -470,7 +472,7 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
                     {["Women", "Men", "Kids", "Accessories", "Gadgets"].map((cat) => (
                       <DropdownMenuCheckboxItem
                         key={cat}
-                        checked={formData.category.includes(cat)}
+                        checked={Array.isArray(formData.category) && formData.category.includes(cat)}
                         onCheckedChange={(checked) => {
                           setFormData(prev => {
                             const newCategories = checked
