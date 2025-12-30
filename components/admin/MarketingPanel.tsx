@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Tag, Globe, Search, Copy, CheckSquare, Loader2 } from "lucide-react";
+import { Plus, Tag, Globe, Search, Copy, CheckSquare, Loader2, Image as ImageIcon, Trash2, Edit2, ExternalLink, Upload, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,20 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/client";
+import { OptimizedImage } from "@/components/ui/optimized-image";
+
+interface Banner {
+  id: string;
+  title: string | null;
+  subtitle: string | null;
+  image_url: string;
+  cta_text: string | null;
+  cta_link: string | null;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+}
 
 interface Promotion {
   id: string;
@@ -38,11 +52,15 @@ interface SEOCheck {
 
 export function MarketingPanel() {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [banners, setBanners] = useState<Banner[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isBannerDialogOpen, setIsBannerDialogOpen] = useState(false);
   const [seoChecks, setSeoChecks] = useState<SEOCheck[]>([]);
   const [seoScore, setSeoScore] = useState(0);
   const [runningAudit, setRunningAudit] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -54,8 +72,18 @@ export function MarketingPanel() {
     end_date: "",
   });
 
+  const [bannerFormData, setBannerFormData] = useState({
+    title: "",
+    subtitle: "",
+    image_url: "",
+    cta_text: "",
+    cta_link: "",
+    display_order: "0",
+  });
+
   useEffect(() => {
     fetchPromotions();
+    fetchBanners();
     loadInitialSEOChecks();
   }, []);
 
@@ -71,6 +99,18 @@ export function MarketingPanel() {
       toast.error("Failed to load promotions");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchBanners = async () => {
+    try {
+      const response = await fetch("/api/admin/banners");
+      if (response.ok) {
+        const data = await response.json();
+        setBanners(data.banners || []);
+      }
+    } catch (error) {
+      console.error("Error fetching banners:", error);
     }
   };
 
@@ -149,6 +189,133 @@ export function MarketingPanel() {
     }
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+
+    const file = e.target.files[0];
+    const supabase = createClient();
+    setIsUploading(true);
+
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `banners/${fileName}`;
+
+      const { error } = await supabase.storage
+        .from("NadineKollections")
+        .upload(filePath, file);
+
+      if (error) throw error;
+
+      const { data: urlData } = supabase.storage
+        .from("NadineKollections")
+        .getPublicUrl(filePath);
+
+      if (urlData.publicUrl) {
+        setBannerFormData(prev => ({ ...prev, image_url: urlData.publicUrl }));
+        toast.success("Image uploaded successfully!");
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error("Failed to upload image");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleSaveBanner = async () => {
+    if (!bannerFormData.image_url) {
+      toast.error("Please upload an image first");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const method = editingBanner ? "PATCH" : "POST";
+      const payload = editingBanner
+        ? { id: editingBanner.id, ...bannerFormData, display_order: parseInt(bannerFormData.display_order) }
+        : { ...bannerFormData, display_order: parseInt(bannerFormData.display_order) };
+
+      const response = await fetch("/api/admin/banners", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        toast.success(editingBanner ? "Banner updated!" : "Banner created!");
+        setIsBannerDialogOpen(false);
+        setEditingBanner(null);
+        setBannerFormData({
+          title: "",
+          subtitle: "",
+          image_url: "",
+          cta_text: "",
+          cta_link: "",
+          display_order: "0",
+        });
+        fetchBanners();
+      } else {
+        throw new Error("Failed to save banner");
+      }
+    } catch (error) {
+      console.error("Error saving banner:", error);
+      toast.error("Failed to save banner");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteBanner = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this banner?")) return;
+
+    try {
+      const response = await fetch(`/api/admin/banners?id=${id}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        toast.success("Banner deleted");
+        fetchBanners();
+      } else {
+        throw new Error("Failed to delete banner");
+      }
+    } catch (error) {
+      console.error("Error deleting banner:", error);
+      toast.error("Failed to delete banner");
+    }
+  };
+
+  const handleToggleBanner = async (banner: Banner) => {
+    try {
+      const response = await fetch("/api/admin/banners", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: banner.id, is_active: !banner.is_active }),
+      });
+
+      if (response.ok) {
+        toast.success(`Banner ${!banner.is_active ? "activated" : "deactivated"}`);
+        fetchBanners();
+      }
+    } catch {
+      toast.error("Failed to update banner status");
+    }
+  };
+
+  const openEditBanner = (banner: Banner) => {
+    setEditingBanner(banner);
+    setBannerFormData({
+      title: banner.title || "",
+      subtitle: banner.subtitle || "",
+      image_url: banner.image_url,
+      cta_text: banner.cta_text || "",
+      cta_link: banner.cta_link || "",
+      display_order: banner.display_order.toString(),
+    });
+    setIsBannerDialogOpen(true);
+  };
+
   const runSEOAudit = async () => {
     setRunningAudit(true);
     try {
@@ -180,7 +347,7 @@ export function MarketingPanel() {
 
   return (
     <div className="space-y-8">
-      {/* SEO Overview */}
+      {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="border-none shadow-card">
           <CardContent className="p-6">
@@ -214,10 +381,6 @@ export function MarketingPanel() {
             </div>
             <div className="flex items-end gap-2">
               <h3 className="text-2xl font-bold">{seoScore}/100</h3>
-              <span className={`text-xs font-medium mb-1 ${seoScore >= 80 ? 'text-success' : seoScore >= 50 ? 'text-warning' : 'text-error'
-                }`}>
-                {seoScore >= 80 ? 'Good' : seoScore >= 50 ? 'Fair' : 'Poor'}
-              </span>
             </div>
           </CardContent>
         </Card>
@@ -225,159 +388,178 @@ export function MarketingPanel() {
         <Card className="border-none shadow-card">
           <CardContent className="p-6">
             <div className="flex justify-between items-start mb-2">
-              <p className="text-sm text-text-secondary font-medium">All Promos</p>
-              <Tag className="h-4 w-4 text-primary/50" />
+              <p className="text-sm text-text-secondary font-medium">Active Banners</p>
+              <ImageIcon className="h-4 w-4 text-primary/50" />
             </div>
             <div className="flex items-end gap-2">
-              <h3 className="text-2xl font-bold">{promotions.length}</h3>
+              <h3 className="text-2xl font-bold">{banners.filter(b => b.is_active).length}</h3>
             </div>
           </CardContent>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Promotions Manager */}
+        {/* Banner Manager */}
         <Card className="lg:col-span-2 border-none shadow-card">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
-              <Tag className="h-5 w-5 text-primary" />
-              Promotions
+              <ImageIcon className="h-5 w-5 text-primary" />
+              Hero Banners
             </CardTitle>
-            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <Dialog
+              open={isBannerDialogOpen}
+              onOpenChange={(open) => {
+                setIsBannerDialogOpen(open);
+                if (!open) {
+                  setEditingBanner(null);
+                  setBannerFormData({
+                    title: "",
+                    subtitle: "",
+                    image_url: "",
+                    cta_text: "",
+                    cta_link: "",
+                    display_order: "0",
+                  });
+                }
+              }}
+            >
               <DialogTrigger asChild>
                 <Button size="sm" className="btn-primary">
-                  <Plus className="mr-2 h-4 w-4" /> Create Code
+                  <Plus className="mr-2 h-4 w-4" /> Add Banner
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-xl">
                 <DialogHeader>
-                  <DialogTitle>Create Promo Code</DialogTitle>
+                  <DialogTitle>{editingBanner ? "Edit Banner" : "Add New Hero Banner"}</DialogTitle>
                   <DialogDescription>
-                    Create a new promotional discount code for customers.
+                    Add a high-quality banner image for the home page hero section.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label>Promo Name *</Label>
-                    <Input
-                      placeholder="e.g., Summer Sale 2024"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    />
+                    <Label>Banner Image *</Label>
+                    {bannerFormData.image_url ? (
+                      <div className="relative aspect-[21/9] rounded-lg overflow-hidden border">
+                        <OptimizedImage
+                          src={bannerFormData.image_url}
+                          alt="Banner Preview"
+                          fill
+                          className="object-cover"
+                        />
+                        <button
+                          onClick={() => setBannerFormData(prev => ({ ...prev, image_url: "" }))}
+                          className="absolute top-2 right-2 p-1 bg-black/50 rounded-full text-white hover:bg-black/70"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center aspect-[21/9] border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
+                        {isUploading ? (
+                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        ) : (
+                          <>
+                            <Upload className="h-8 w-8 text-text-secondary mb-2" />
+                            <span className="text-sm font-medium">Click to upload banner</span>
+                            <span className="text-xs text-text-secondary mt-1">Recommended size: 2560x1080px</span>
+                          </>
+                        )}
+                        <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} disabled={isUploading} />
+                      </label>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Coupon Code *</Label>
-                    <Input
-                      placeholder="e.g., SUMMER20"
-                      value={formData.coupon_code}
-                      onChange={(e) => setFormData({ ...formData, coupon_code: e.target.value.toUpperCase() })}
-                    />
-                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Type *</Label>
-                      <select
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        value={formData.promo_type}
-                        onChange={(e) => setFormData({ ...formData, promo_type: e.target.value })}
-                      >
-                        <option value="percentage">Percentage</option>
-                        <option value="fixed">Fixed Amount</option>
-                        <option value="free_shipping">Free Shipping</option>
-                      </select>
+                      <Label>Title</Label>
+                      <Input
+                        placeholder="e.g., Summer Collection"
+                        value={bannerFormData.title}
+                        onChange={(e) => setBannerFormData(prev => ({ ...prev, title: e.target.value }))}
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label>Discount Value *</Label>
+                      <Label>Subtitle</Label>
                       <Input
-                        type="number"
-                        placeholder={formData.promo_type === "percentage" ? "20" : "5000"}
-                        value={formData.discount_value}
-                        onChange={(e) => setFormData({ ...formData, discount_value: e.target.value })}
+                        placeholder="e.g., Up to 50% Off"
+                        value={bannerFormData.subtitle}
+                        onChange={(e) => setBannerFormData(prev => ({ ...prev, subtitle: e.target.value }))}
                       />
                     </div>
                   </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Usage Limit (optional)</Label>
+                      <Label>CTA Text</Label>
                       <Input
-                        type="number"
-                        placeholder="100"
-                        value={formData.total_usage_limit}
-                        onChange={(e) => setFormData({ ...formData, total_usage_limit: e.target.value })}
+                        placeholder="e.g., Shop Now"
+                        value={bannerFormData.cta_text}
+                        onChange={(e) => setBannerFormData(prev => ({ ...prev, cta_text: e.target.value }))}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>End Date (optional)</Label>
+                      <Label>CTA Link</Label>
                       <Input
-                        type="date"
-                        value={formData.end_date}
-                        onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                        placeholder="e.g., /shop/women"
+                        value={bannerFormData.cta_link}
+                        onChange={(e) => setBannerFormData(prev => ({ ...prev, cta_link: e.target.value }))}
                       />
                     </div>
+                  </div>
+
+                  <div className="space-y-2 w-32">
+                    <Label>Display Order</Label>
+                    <Input
+                      type="number"
+                      value={bannerFormData.display_order}
+                      onChange={(e) => setBannerFormData(prev => ({ ...prev, display_order: e.target.value }))}
+                    />
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+                  <Button variant="outline" onClick={() => setIsBannerDialogOpen(false)}>
                     Cancel
                   </Button>
-                  <Button onClick={handleCreatePromo} disabled={loading}>
+                  <Button onClick={handleSaveBanner} disabled={loading || isUploading}>
                     {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Create Promo
+                    {editingBanner ? "Update" : "Create"}
                   </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
           </CardHeader>
           <CardContent>
-            {loading && promotions.length === 0 ? (
-              <div className="flex items-center justify-center p-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : promotions.length === 0 ? (
-              <div className="text-center p-8 text-text-secondary">
-                No promotions yet. Create your first promo code!
+            {banners.length === 0 ? (
+              <div className="text-center py-8 text-text-secondary">
+                No hero banners yet.
               </div>
             ) : (
               <div className="space-y-4">
-                {promotions.map((promo) => {
-                  const status = getPromoStatus(promo);
-                  return (
-                    <div
-                      key={promo.id}
-                      className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border border-border-light"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                          <Tag className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-bold">{promo.coupon_code}</h4>
-                            <Badge variant={status === "Active" ? "default" : "secondary"}>
-                              {status}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-text-secondary">
-                            {promo.promo_type === "percentage" ? `${promo.discount_value}%` : `₦${promo.discount_value}`} • {promo.usage_count} uses
-                            {promo.total_usage_limit ? ` / ${promo.total_usage_limit}` : ""}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleTogglePromo(promo.id, promo.is_active)}
-                        >
-                          {promo.is_active ? "Deactivate" : "Activate"}
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleCopyCode(promo.coupon_code)}>
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
+                {banners.map((banner) => (
+                  <div key={banner.id} className="group flex items-center gap-4 p-4 bg-muted/30 rounded-lg border border-border-light">
+                    <div className="relative h-16 w-24 rounded overflow-hidden flex-shrink-0">
+                      <OptimizedImage src={banner.image_url} alt="" fill className="object-cover" />
                     </div>
-                  );
-                })}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold truncate">{banner.title || "Untitled"}</h4>
+                        <Badge variant={banner.is_active ? "default" : "secondary"}>{banner.is_active ? "Active" : "Hidden"}</Badge>
+                      </div>
+                      <p className="text-xs text-text-secondary truncate">{banner.subtitle}</p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => handleToggleBanner(banner)}>
+                        {banner.is_active ? <X className="h-4 w-4" /> : <CheckSquare className="h-4 w-4" />}
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => openEditBanner(banner)}>
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDeleteBanner(banner.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
@@ -401,14 +583,7 @@ export function MarketingPanel() {
                   >
                     {item.done && <CheckSquare className="h-3 w-3" />}
                   </div>
-                  <div className="flex-1">
-                    <span className={`text-sm ${item.done ? "text-text-primary" : "text-text-secondary"}`}>
-                      {item.task}
-                    </span>
-                    {item.details && (
-                      <p className="text-xs text-text-secondary mt-1">{item.details}</p>
-                    )}
-                  </div>
+                  <div className="flex-1 text-sm">{item.task}</div>
                 </div>
               ))}
             </div>
@@ -418,18 +593,83 @@ export function MarketingPanel() {
               onClick={runSEOAudit}
               disabled={runningAudit}
             >
-              {runningAudit ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Running Audit...
-                </>
-              ) : (
-                "Run SEO Audit"
-              )}
+              {runningAudit ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Run Audit
             </Button>
           </CardContent>
         </Card>
       </div>
+
+      {/* Promotions Manager */}
+      <Card className="border-none shadow-card">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Tag className="h-5 w-5 text-primary" />
+            Promotions
+          </CardTitle>
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="btn-primary">
+                <Plus className="mr-2 h-4 w-4" /> Create Code
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create Promo Code</DialogTitle>
+                <DialogDescription>Create a new promotional discount code.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Promo Name *</Label>
+                  <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Coupon Code *</Label>
+                  <Input value={formData.coupon_code} onChange={(e) => setFormData({ ...formData, coupon_code: e.target.value.toUpperCase() })} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Type *</Label>
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={formData.promo_type}
+                      onChange={(e) => setFormData({ ...formData, promo_type: e.target.value })}
+                    >
+                      <option value="percentage">Percentage</option>
+                      <option value="fixed">Fixed</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Value *</Label>
+                    <Input type="number" value={formData.discount_value} onChange={(e) => setFormData({ ...formData, discount_value: e.target.value })} />
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={handleCreatePromo} disabled={loading}>Create</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {promotions.map((promo) => (
+              <div key={promo.id} className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border border-border-light">
+                <div>
+                  <h4 className="font-bold">{promo.coupon_code}</h4>
+                  <p className="text-sm text-text-secondary">{promo.promo_type} • {promo.usage_count} uses</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => handleTogglePromo(promo.id, promo.is_active)}>
+                    {promo.is_active ? "Deactivate" : "Activate"}
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleCopyCode(promo.coupon_code)}><Copy className="h-4 w-4" /></Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
