@@ -147,6 +147,7 @@ CREATE TABLE IF NOT EXISTS public.admin_invitations (
   status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'expired', 'revoked')),
   token TEXT UNIQUE NOT NULL,
   expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '7 days'),
+  accepted_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

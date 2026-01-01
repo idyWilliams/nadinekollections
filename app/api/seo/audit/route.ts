@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { config } from "@/lib/config";
 import * as cheerio from "cheerio";
 
 interface SEOCheck {
@@ -20,7 +21,7 @@ interface SEOAuditResult {
 
 export async function GET() {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    const baseUrl = config.site.url;
     const checks: SEOCheck[] = [];
     let score = 100;
 
@@ -72,7 +73,7 @@ export async function GET() {
 
       // 4. Check Alt Text on Images
       const images = $("img");
-      const imagesWithoutAlt = images.filter((_, el) => !$(el).attr("alt")).length;
+      const imagesWithoutAlt = images.filter((_: any, el: any) => !$(el).attr("alt")).length;
       const altTextOptimized = imagesWithoutAlt === 0;
       checks.push({
         task: "Alt text on images",
@@ -125,7 +126,7 @@ export async function GET() {
       score: Math.max(0, score),
       checks,
       stats: {
-        totalPages: 1, // We only checked homepage for now
+        totalPages: 1,
         pagesWithIssues: checks.filter((c) => !c.done).length,
         missingMetaTags: checks.find((c) => c.task === "Meta tags optimized")?.done ? 0 : 1,
         missingAltTexts: parseInt(

@@ -1,4 +1,3 @@
-// ```typescript
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -9,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { createClient } from "@/lib/supabase/client";
-import { UserPlus, Lock } from "lucide-react";
+import { UserPlus, Lock, Loader2, ShieldCheck, Mail } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +18,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 interface AdminProfile {
@@ -37,6 +36,7 @@ export function SettingsPanel() {
   const [loading, setLoading] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [invitations, setInvitations] = useState<any[]>([]);
   const [admins, setAdmins] = useState<AdminProfile[]>([]);
 
   // Settings State
@@ -46,7 +46,6 @@ export function SettingsPanel() {
     currency: "NGN",
     emailNotifications: true,
     lowStockNotifications: true,
-    // Payment Settings
     paymentProvider: "paystack" as PaymentProvider,
     paystackPublicKey: "",
     flutterwavePublicKey: "",
@@ -60,35 +59,49 @@ export function SettingsPanel() {
   const supabase = createClient();
 
   const fetchAdmins = useCallback(async () => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("role", "admin")
-      .is("deleted_at", null); // Only show non-deleted admins
-    if (data) setAdmins(data as AdminProfile[]);
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("role", "admin")
+        .is("deleted_at", null);
+      if (data) setAdmins(data as AdminProfile[]);
+
+      const response = await fetch("/api/admin/invitations");
+      if (response.ok) {
+        const inviteData = await response.json();
+        setInvitations(inviteData.invitations || []);
+      }
+    } catch (error) {
+      console.error("Error fetching team:", error);
+    }
   }, [supabase]);
 
   const fetchSettings = useCallback(async () => {
-    const { data } = await supabase
-      .from("store_settings")
-      .select("*")
-      .single();
+    try {
+      const { data } = await supabase
+        .from("store_settings")
+        .select("*")
+        .single();
 
-    if (data) {
-      setSettings(prev => ({
-        ...prev,
-        storeName: data.store_name || prev.storeName,
-        supportEmail: data.support_email || prev.supportEmail,
-        currency: data.currency || prev.currency,
-        paymentProvider: (data.payment_provider as PaymentProvider) || prev.paymentProvider,
-        paystackPublicKey: data.paystack_public_key || "",
-        flutterwavePublicKey: data.flutterwave_public_key || "",
-        monnifyPublicKey: data.monnify_public_key || "",
-        monnifyContractCode: data.monnify_contract_code || "",
-        remitaPublicKey: data.remita_public_key || "",
-        remitaMerchantId: data.remita_merchant_id || "",
-        remitaServiceTypeId: data.remita_service_type_id || "",
-      }));
+      if (data) {
+        setSettings(prev => ({
+          ...prev,
+          storeName: data.store_name || prev.storeName,
+          supportEmail: data.support_email || prev.supportEmail,
+          currency: data.currency || prev.currency,
+          paymentProvider: (data.payment_provider as PaymentProvider) || prev.paymentProvider,
+          paystackPublicKey: data.paystack_public_key || "",
+          flutterwavePublicKey: data.flutterwave_public_key || "",
+          monnifyPublicKey: data.monnify_public_key || "",
+          monnifyContractCode: data.monnify_contract_code || "",
+          remitaPublicKey: data.remita_public_key || "",
+          remitaMerchantId: data.remita_merchant_id || "",
+          remitaServiceTypeId: data.remita_service_type_id || "",
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching settings:", error);
     }
   }, [supabase]);
 
@@ -117,10 +130,10 @@ export function SettingsPanel() {
         });
 
       if (error) throw error;
-      alert("Settings saved successfully!");
+      toast.success("Settings saved successfully!");
     } catch (error) {
       console.error(error);
-      alert("Failed to save settings.");
+      toast.error("Failed to save settings.");
     } finally {
       setLoading(false);
     }
@@ -140,109 +153,47 @@ export function SettingsPanel() {
 
       if (!response.ok) throw new Error(data.error);
 
-      alert(data.message);
+      toast.success(data.message);
       setInviteEmail("");
       setIsInviteOpen(false);
-      fetchAdmins(); // Refresh list
+      fetchAdmins();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to invite admin";
-      alert(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
   };
 
   const handleBanAdmin = async (adminId: string, currentlyActive: boolean) => {
-    if (!currentlyActive) {
-      if (!confirm("Are you sure you want to reactivate this admin?")) return;
-      setLoading(true);
-      try {
-        const response = await fetch("/api/admin/ban", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ adminId, action: "reactivate" }),
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error);
-        alert(data.message);
-        fetchAdmins();
-      } catch (error: unknown) {
-        if (error instanceof Error) {
-          alert(error.message);
-        } else {
-          alert('An unknown error occurred');
-        }
-      } finally {
-        setLoading(false);
-      }
-    } else {
-      const permanentDelete = confirm("Permanently delete? Cancel to just ban.");
-      const action = permanentDelete ? "delete" : "ban";
-      if (!confirm(`Are you sure you want to ${action}?`)) return;
-      setLoading(true);
-      try {
-        const response = await fetch("/api/admin/ban", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ adminId, action, permanentDelete }),
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error);
-        alert(data.message);
-        fetchAdmins();
-      } catch (error: unknown) {
-        if (error instanceof Error) {
-          alert(error.message);
-        } else {
-          alert('An unknown error occurred');
-        }
-      } finally {
-        setLoading(false);
-      }
+    const actionLabel = currentlyActive ? "ban" : "reactivate";
+    if (!confirm(`Are you sure you want to ${actionLabel} this admin?`)) return;
+
+    setLoading(true);
+    try {
+      const action = currentlyActive ? "ban" : "reactivate";
+      const response = await fetch("/api/admin/ban", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adminId, action }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      toast.success(data.message);
+      fetchAdmins();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to update admin status";
+      toast.error(message);
+    } finally {
+      setLoading(false);
     }
   };
 
   const providers = [
-    {
-      id: 'paystack',
-      name: 'Paystack',
-      color: 'bg-blue-500',
-      icon: 'P',
-      status: 'High Performance',
-      uptime: '99.9%',
-      statusColor: 'text-green-500',
-      description: 'Seamless payments for Africa.'
-    },
-    {
-      id: 'flutterwave',
-      name: 'Flutterwave',
-      color: 'bg-orange-500',
-      icon: 'F',
-      status: 'Average Load',
-      uptime: '98.5%',
-      statusColor: 'text-yellow-500',
-      description: 'Endless possibilities for every business.'
-    },
-    {
-      id: 'monnify',
-      name: 'Monnify',
-      color: 'bg-indigo-500',
-      icon: 'M',
-      status: 'Stable',
-      uptime: '99.2%',
-      statusColor: 'text-green-500',
-      description: 'Powering business payments.'
-    },
-    {
-      id: 'remita',
-      name: 'Remita',
-      color: 'bg-red-600',
-      icon: 'R',
-      status: 'High Latency',
-      uptime: '95.0%',
-      statusColor: 'text-red-500',
-      description: 'The complete payment solution.'
-    }
+    { id: 'paystack', name: 'Paystack', status: 'High Performance', statusColor: 'text-green-500' },
+    { id: 'flutterwave', name: 'Flutterwave', status: 'Average Load', statusColor: 'text-yellow-500' },
+    { id: 'monnify', name: 'Monnify', status: 'Stable', statusColor: 'text-green-500' },
+    { id: 'remita', name: 'Remita', status: 'High Latency', statusColor: 'text-red-500' }
   ] as const;
 
   return (
@@ -254,14 +205,13 @@ export function SettingsPanel() {
         <TabsTrigger value="notifications">Notifications</TabsTrigger>
       </TabsList>
 
-      {/* General Settings */}
       <TabsContent value="general" className="space-y-6">
         <div className="grid gap-6 max-w-2xl">
           <div className="space-y-2">
             <h3 className="text-lg font-medium">Store Profile</h3>
-            <p className="text-sm text-muted-foreground">This information will be displayed publicly.</p>
+            <p className="text-sm text-muted-foreground">General store settings and configuration.</p>
           </div>
-          <Card>
+          <Card className="border-none shadow-card">
             <CardContent className="p-6 space-y-4">
               <div className="grid gap-2">
                 <Label>Store Name</Label>
@@ -280,7 +230,7 @@ export function SettingsPanel() {
               <div className="grid gap-2">
                 <Label>Currency</Label>
                 <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={settings.currency}
                   onChange={(e) => setSettings({ ...settings, currency: e.target.value })}
                 >
@@ -291,45 +241,45 @@ export function SettingsPanel() {
             </CardContent>
           </Card>
           <div className="flex justify-end">
-            <Button onClick={handleSaveGeneral} disabled={loading}>
-              {loading ? "Saving..." : "Save Changes"}
+            <Button onClick={handleSaveGeneral} disabled={loading} className="btn-primary">
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Changes
             </Button>
           </div>
         </div>
       </TabsContent>
 
-      {/* Team Management */}
       <TabsContent value="team" className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <h3 className="text-lg font-medium">Team Members</h3>
-            <p className="text-sm text-muted-foreground">Manage who has access to the admin dashboard.</p>
+            <p className="text-sm text-muted-foreground">Manage admin access and invitations.</p>
           </div>
           <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button className="btn-primary">
                 <UserPlus className="mr-2 h-4 w-4" /> Invite Member
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Invite New Administrator</DialogTitle>
-                <DialogDescription>
-                  Send an invitation to a new team member.
-                </DialogDescription>
+                <DialogTitle>Invite Admin</DialogTitle>
+                <DialogDescription>Send an admin invitation email.</DialogDescription>
               </DialogHeader>
-              <div className="space-y-2 py-4">
-                <Label>Email Address</Label>
-                <Input
-                  placeholder="colleague@example.com"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                />
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Email Address</Label>
+                  <Input
+                    placeholder="colleague@example.com"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                  />
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsInviteOpen(false)}>Cancel</Button>
                 <Button onClick={handleInviteAdmin} disabled={loading || !inviteEmail}>
-                  {loading ? "Sending..." : "Send Invitation"}
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Invite"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -338,7 +288,7 @@ export function SettingsPanel() {
 
         <div className="grid gap-4">
           {admins.map((admin) => (
-            <Card key={admin.id} className="overflow-hidden">
+            <Card key={admin.id} className="border-none shadow-card overflow-hidden">
               <div className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-4">
                   <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
@@ -357,15 +307,36 @@ export function SettingsPanel() {
                     {admin.is_active ? "Active" : "Banned"}
                   </span>
                   {!["justminad@gmail.com", "widorenyin0@gmail.com"].includes(admin.email || "") && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-muted-foreground hover:text-destructive"
-                      onClick={() => handleBanAdmin(admin.id, admin.is_active)}
-                    >
-                      {admin.is_active ? "Ban Access" : "Restore Access"}
+                    <Button variant="ghost" size="sm" onClick={() => handleBanAdmin(admin.id, admin.is_active)}>
+                      {admin.is_active ? "Ban" : "Restore"}
                     </Button>
                   )}
+                </div>
+              </div>
+            </Card>
+          ))}
+
+          {invitations.map((invite) => (
+            <Card key={invite.id} className="border-none shadow-card border-dashed bg-muted/20">
+              <div className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-4 text-muted-foreground">
+                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center font-bold">
+                    {invite.email[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="font-medium flex items-center gap-2">
+                      <Mail className="h-3 w-3" /> Invited
+                    </p>
+                    <p className="text-sm">{invite.email}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={cn(
+                    "text-xs px-2.5 py-0.5 rounded-full font-medium",
+                    invite.status === 'accepted' ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                  )}>
+                    {invite.status === 'accepted' ? "Accepted" : "Pending"}
+                  </span>
                 </div>
               </div>
             </Card>
@@ -373,175 +344,73 @@ export function SettingsPanel() {
         </div>
       </TabsContent>
 
-      {/* Payment Settings */}
       <TabsContent value="payments" className="space-y-6">
         <div className="grid gap-6 max-w-2xl">
           <div className="space-y-2">
             <h3 className="text-lg font-medium">Payment Configuration</h3>
-            <p className="text-sm text-muted-foreground">
-              Manage your payment gateway settings.
-            </p>
+            <p className="text-sm text-muted-foreground">Configure your payment gateway credentials.</p>
           </div>
-
-          <Card>
+          <Card className="border-none shadow-card">
             <CardHeader>
               <CardTitle>Active Provider</CardTitle>
-              <CardDescription>Select the payment gateway to process transactions.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
-                {providers.map((provider) => (
+                {providers.map((p) => (
                   <div
-                    key={provider.id}
-                    onClick={() => setSettings({ ...settings, paymentProvider: provider.id as PaymentProvider })}
+                    key={p.id}
+                    onClick={() => setSettings({ ...settings, paymentProvider: p.id })}
                     className={cn(
-                      "cursor-pointer rounded-lg border-2 p-4 flex flex-col items-center justify-center gap-2 transition-all hover:bg-accent",
-                      settings.paymentProvider === provider.id
-                        ? "border-primary bg-primary/5"
-                        : "border-muted bg-transparent"
+                      "cursor-pointer rounded-lg border-2 p-4 flex flex-col items-center justify-center gap-2 transition-all",
+                      settings.paymentProvider === p.id ? "border-primary bg-primary/5" : "border-muted"
                     )}
                   >
-                    <div className="font-semibold">{provider.name}</div>
-                    <div className={cn("text-xs px-2 py-0.5 rounded-full bg-muted", provider.statusColor)}>
-                      {provider.status}
-                    </div>
+                    <div className="font-semibold">{p.name}</div>
+                    <div className={cn("text-xs", p.statusColor)}>{p.status}</div>
                   </div>
                 ))}
               </div>
-
-              <div className="border-t pt-6">
-                <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
-                  <Lock className="h-4 w-4 text-muted-foreground" />
-                  {providers.find(p => p.id === settings.paymentProvider)?.name} Credentials
-                </h4>
-
-                <div className="space-y-4">
-                  {settings.paymentProvider === 'paystack' && (
-                    <div className="grid gap-2">
-                      <Label>Public Key</Label>
-                      <Input
-                        value={settings.paystackPublicKey}
-                        onChange={(e) => setSettings({ ...settings, paystackPublicKey: e.target.value })}
-                        placeholder="pk_test_..."
-                        className="font-mono"
-                      />
-                      <p className="text-[10px] text-muted-foreground">
-                        Available in your Paystack Dashboard Settings.
-                      </p>
-                    </div>
-                  )}
-
-                  {settings.paymentProvider === 'flutterwave' && (
-                    <div className="grid gap-2">
-                      <Label>Public Key</Label>
-                      <Input
-                        value={settings.flutterwavePublicKey}
-                        onChange={(e) => setSettings({ ...settings, flutterwavePublicKey: e.target.value })}
-                        placeholder="FLWPUBK_TEST..."
-                        className="font-mono"
-                      />
-                    </div>
-                  )}
-
-                  {settings.paymentProvider === 'monnify' && (
-                    <>
-                      <div className="grid gap-2">
-                        <Label>API Key</Label>
-                        <Input
-                          value={settings.monnifyPublicKey}
-                          onChange={(e) => setSettings({ ...settings, monnifyPublicKey: e.target.value })}
-                          placeholder="MK_TEST..."
-                          className="font-mono"
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label>Contract Code</Label>
-                        <Input
-                          value={settings.monnifyContractCode}
-                          onChange={(e) => setSettings({ ...settings, monnifyContractCode: e.target.value })}
-                          placeholder="1234567890"
-                          className="font-mono"
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  {settings.paymentProvider === 'remita' && (
-                    <>
-                      <div className="grid gap-2">
-                        <Label>Public Key</Label>
-                        <Input
-                          value={settings.remitaPublicKey}
-                          onChange={(e) => setSettings({ ...settings, remitaPublicKey: e.target.value })}
-                          className="font-mono"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="grid gap-2">
-                          <Label>Merchant ID</Label>
-                          <Input
-                            value={settings.remitaMerchantId}
-                            onChange={(e) => setSettings({ ...settings, remitaMerchantId: e.target.value })}
-                            className="font-mono"
-                          />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label>Service Type ID</Label>
-                          <Input
-                            value={settings.remitaServiceTypeId}
-                            onChange={(e) => setSettings({ ...settings, remitaServiceTypeId: e.target.value })}
-                            className="font-mono"
-                          />
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
+              <div className="border-t pt-6 space-y-4">
+                <h4 className="text-sm font-medium flex items-center gap-2"><Lock className="h-4 w-4" /> Keys</h4>
+                {settings.paymentProvider === 'paystack' && (
+                  <Input
+                    value={settings.paystackPublicKey}
+                    onChange={(e) => setSettings({ ...settings, paystackPublicKey: e.target.value })}
+                    placeholder="Public Key"
+                  />
+                )}
+                {/* ... other provider inputs ... */}
+                {settings.paymentProvider === 'flutterwave' && (
+                  <Input value={settings.flutterwavePublicKey} onChange={e => setSettings({ ...settings, flutterwavePublicKey: e.target.value })} placeholder="FLWPUBK_TEST..." />
+                )}
+                {settings.paymentProvider === 'monnify' && (
+                  <div className="space-y-2">
+                    <Input value={settings.monnifyPublicKey} onChange={e => setSettings({ ...settings, monnifyPublicKey: e.target.value })} placeholder="API Key" />
+                    <Input value={settings.monnifyContractCode} onChange={e => setSettings({ ...settings, monnifyContractCode: e.target.value })} placeholder="Contract Code" />
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
-
           <div className="flex justify-end">
-            <Button onClick={handleSaveGeneral} disabled={loading}>
-              {loading ? "Saving..." : "Save Payment Settings"}
-            </Button>
+            <Button onClick={handleSaveGeneral} disabled={loading} className="btn-primary">Save Payment Settings</Button>
           </div>
         </div>
       </TabsContent>
 
-      {/* Notifications */}
       <TabsContent value="notifications" className="space-y-6">
-        <Card>
+        <Card className="border-none shadow-card">
           <CardHeader>
-            <CardTitle>Notification Preferences</CardTitle>
-            <CardDescription>
-              Choose what you want to be notified about.
-            </CardDescription>
+            <CardTitle>Preferences</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-base">New Order Alerts</Label>
-                <p className="text-sm text-muted-foreground">
-                  Receive an email when a new order is placed.
-                </p>
-              </div>
-              <Switch
-                checked={settings.emailNotifications}
-                onCheckedChange={(checked) => setSettings({ ...settings, emailNotifications: checked })}
-              />
+              <Label>Email Notifications</Label>
+              <Switch checked={settings.emailNotifications} onCheckedChange={v => setSettings({ ...settings, emailNotifications: v })} />
             </div>
             <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-base">Low Stock Warnings</Label>
-                <p className="text-sm text-muted-foreground">
-                  Get notified when products fall below threshold.
-                </p>
-              </div>
-              <Switch
-                checked={settings.lowStockNotifications}
-                onCheckedChange={(checked) => setSettings({ ...settings, lowStockNotifications: checked })}
-              />
+              <Label>Low Stock Warnings</Label>
+              <Switch checked={settings.lowStockNotifications} onCheckedChange={v => setSettings({ ...settings, lowStockNotifications: v })} />
             </div>
           </CardContent>
         </Card>

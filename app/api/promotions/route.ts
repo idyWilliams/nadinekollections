@@ -70,15 +70,13 @@ export async function POST(request: Request) {
       .from("promotions")
       .insert({
         name,
-        coupon_code: coupon_code.toUpperCase(),
-        promo_type,
-        discount_value,
-        conditions: conditions || {},
-        usage_limit_per_customer,
-        total_usage_limit,
+        code: coupon_code.toUpperCase(),
+        type: promo_type,
+        value: discount_value,
+        usage_limit: total_usage_limit,
         start_date,
         end_date,
-        created_by: user.id,
+        // created_by: user.id, // Column doesn't exist in schema.sql, omitting for now
       })
       .select()
       .single();

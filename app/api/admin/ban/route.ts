@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { sendEmail } from "@/lib/email";
@@ -11,20 +11,24 @@ export async function POST(request: Request) {
     const supabase = await createServerClient();
     const {
       data: { user },
+      error: authError
     } = await supabase.auth.getUser();
 
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized", details: authError }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("role, email, full_name")
       .eq("id", user.id)
       .single();
 
-    if (profile?.role !== "admin" || !SUPER_ADMIN_EMAILS.includes(profile.email || "")) {
-      return NextResponse.json({ error: "Forbidden - Super admin access required" }, { status: 403 });
+    if (profileError || profile?.role !== "admin" || !SUPER_ADMIN_EMAILS.includes(profile.email || "")) {
+      return NextResponse.json({
+        error: "Forbidden - Super admin access required",
+        details: profileError
+      }, { status: 403 });
     }
 
     // 2. Parse request body
@@ -37,14 +41,14 @@ export async function POST(request: Request) {
     }
 
     // 3. Check target admin
-    const { data: targetAdmin } = await supabase
+    const { data: targetAdmin, error: targetError } = await supabase
       .from("profiles")
       .select("email, role, full_name, is_active, deleted_at")
       .eq("id", adminId)
       .single();
 
-    if (!targetAdmin) {
-      return NextResponse.json({ error: "Admin not found" }, { status: 404 });
+    if (targetError || !targetAdmin) {
+      return NextResponse.json({ error: "Admin not found", details: targetError }, { status: 404 });
     }
 
     // Prevent actions on super admins
@@ -52,17 +56,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Cannot perform actions on super admins" }, { status: 403 });
     }
 
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const adminAuthClient = serviceRoleKey ? createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      serviceRoleKey,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    ) : null;
+    const adminAuthClient = createAdminClient();
 
     let message = "";
     let emailSubject = "";
@@ -71,7 +65,7 @@ export async function POST(request: Request) {
     // 4. Perform action
     if (action === "ban") {
       // Ban the user
-      const { error: updateError } = await supabase
+      const { error: updateError } = await adminAuthClient
         .from("profiles")
         .update({ is_active: false })
         .eq("id", adminId);
@@ -79,9 +73,7 @@ export async function POST(request: Request) {
       if (updateError) throw updateError;
 
       // Sign out all sessions
-      if (adminAuthClient) {
-        await adminAuthClient.auth.admin.signOut(adminId);
-      }
+      await adminAuthClient.auth.admin.signOut(adminId);
 
       message = permanentDelete
         ? "Admin will be permanently deleted"
@@ -101,7 +93,7 @@ export async function POST(request: Request) {
 
     } else if (action === "delete") {
       // Permanently delete (soft delete)
-      const { error: updateError } = await supabase
+      const { error: updateError } = await adminAuthClient
         .from("profiles")
         .update({
           is_active: false,
@@ -112,9 +104,7 @@ export async function POST(request: Request) {
       if (updateError) throw updateError;
 
       // Sign out all sessions
-      if (adminAuthClient) {
-        await adminAuthClient.auth.admin.signOut(adminId);
-      }
+      await adminAuthClient.auth.admin.signOut(adminId);
 
       message = "Admin permanently deleted";
       emailSubject = "Account Deleted - NadineKollections Admin";
@@ -131,7 +121,7 @@ export async function POST(request: Request) {
 
     } else if (action === "reactivate") {
       // Reactivate the user
-      const { error: updateError } = await supabase
+      const { error: updateError } = await adminAuthClient
         .from("profiles")
         .update({ is_active: true })
         .eq("id", adminId);
@@ -152,44 +142,32 @@ export async function POST(request: Request) {
       `;
     }
 
-    // 5. Send email to target admin
+    // 5. Send emails
     if (targetAdmin.email) {
-      await sendEmail({
-        to: targetAdmin.email,
-        subject: emailSubject,
-        html: emailBody,
-      });
-    }
-
-    // 6. Send confirmation email to super admin performing the action
-    if (profile.email) {
-      await sendEmail({
-        to: profile.email,
-        subject: `Admin Action Confirmed - ${action}`,
-        html: `
-          <div style="font-family: sans-serif; color: #333;">
-            <h2>Action Confirmed</h2>
-            <p>Dear ${profile.full_name || "Super Admin"},</p>
-            <p>You have successfully <strong>${action}ed</strong> the admin account:</p>
-            <ul>
-              <li><strong>Name:</strong> ${targetAdmin.full_name || "N/A"}</li>
-              <li><strong>Email:</strong> ${targetAdmin.email}</li>
-              <li><strong>Action:</strong> ${action}</li>
-            </ul>
-            <hr />
-            <p style="font-size: 12px; color: #666;">NadineKollections Admin Team</p>
-          </div>
-        `,
-      });
+      try {
+        await sendEmail({
+          to: targetAdmin.email,
+          subject: emailSubject,
+          html: emailBody,
+        });
+      } catch (emailErr) {
+        console.error("Failed to send notification email:", emailErr);
+      }
     }
 
     return NextResponse.json({
       success: true,
       message,
     });
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error("Error managing admin:", error);
-    const message = error instanceof Error ? error.message : "Internal Server Error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: "Internal Server Error",
+        message: error.message,
+        code: error.code || 'UNKNOWN_ERROR'
+      },
+      { status: 500 }
+    );
   }
 }
