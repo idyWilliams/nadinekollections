@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     const { data: existing } = await supabase
       .from("promotions")
       .select("id")
-      .eq("coupon_code", coupon_code.toUpperCase())
+      .eq("code", coupon_code.toUpperCase())
       .single();
 
     if (existing) {

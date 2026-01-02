@@ -170,7 +170,7 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
         tags: [...new Set([...autoTags, ...existingUserTags])]
       }));
     }
-  }, [formData.title, formData.description, formData.category, isEditing, formData.tags]);
+  }, [formData.title, formData.description, formData.category, isEditing]);
 
   // Load draft on mount (only for new products)
   useEffect(() => {
