@@ -69,6 +69,7 @@ export function MarketingPanel() {
     promo_type: "percentage",
     discount_value: "",
     total_usage_limit: "",
+    start_date: "",
     end_date: "",
   });
 
@@ -156,6 +157,7 @@ export function MarketingPanel() {
         promo_type: "percentage",
         discount_value: "",
         total_usage_limit: "",
+        start_date: "",
         end_date: "",
       });
       fetchPromotions();
@@ -616,16 +618,28 @@ export function MarketingPanel() {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Create Promo Code</DialogTitle>
-                <DialogDescription>Create a new promotional discount code.</DialogDescription>
+                <DialogDescription>
+                  Create discount codes to reward customers, drive sales, and promote special offers. Codes can be percentage-based or fixed amounts.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
                   <Label>Promo Name *</Label>
-                  <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+                  <Input
+                    placeholder="e.g., Summer Sale 2024"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">Internal name to identify this promotion in your dashboard</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Coupon Code *</Label>
-                  <Input value={formData.coupon_code} onChange={(e) => setFormData({ ...formData, coupon_code: e.target.value.toUpperCase() })} />
+                  <Input
+                    placeholder="e.g., SUMMER20"
+                    value={formData.coupon_code}
+                    onChange={(e) => setFormData({ ...formData, coupon_code: e.target.value.toUpperCase() })}
+                  />
+                  <p className="text-xs text-muted-foreground">The code customers will enter at checkout (automatically converted to uppercase)</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -636,17 +650,60 @@ export function MarketingPanel() {
                       onChange={(e) => setFormData({ ...formData, promo_type: e.target.value })}
                     >
                       <option value="percentage">Percentage</option>
-                      <option value="fixed">Fixed</option>
+                      <option value="fixed_amount">Fixed Amount</option>
+                      <option value="free_shipping">Free Shipping</option>
                     </select>
+                    <p className="text-xs text-muted-foreground">Choose discount type</p>
                   </div>
                   <div className="space-y-2">
                     <Label>Value *</Label>
-                    <Input type="number" value={formData.discount_value} onChange={(e) => setFormData({ ...formData, discount_value: e.target.value })} />
+                    <Input
+                      type="number"
+                      placeholder="e.g., 20 or 5000"
+                      value={formData.discount_value}
+                      onChange={(e) => setFormData({ ...formData, discount_value: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {formData.promo_type === 'percentage' ? 'Enter percentage (e.g., 20 for 20% off)' : 'Enter amount in ₦ (e.g., 5000)'}
+                    </p>
                   </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Start Date</Label>
+                    <Input
+                      type="date"
+                      value={formData.start_date}
+                      onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground">When promotion becomes active (optional)</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>End Date</Label>
+                    <Input
+                      type="date"
+                      value={formData.end_date}
+                      onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground">When promotion expires (optional)</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Usage Limit</Label>
+                  <Input
+                    type="number"
+                    placeholder="Leave empty for unlimited"
+                    value={formData.total_usage_limit}
+                    onChange={(e) => setFormData({ ...formData, total_usage_limit: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">Maximum number of times this code can be used (leave empty for unlimited)</p>
                 </div>
               </div>
               <DialogFooter>
-                <Button onClick={handleCreatePromo} disabled={loading}>Create</Button>
+                <Button onClick={handleCreatePromo} disabled={loading}>
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Create
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

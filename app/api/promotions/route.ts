@@ -74,9 +74,8 @@ export async function POST(request: Request) {
         type: promo_type,
         value: discount_value,
         usage_limit: total_usage_limit,
-        start_date,
-        end_date,
-        // created_by: user.id, // Column doesn't exist in schema.sql, omitting for now
+        start_date: start_date || null,
+        end_date: end_date || null, // Convert empty string to null
       })
       .select()
       .single();
@@ -84,10 +83,20 @@ export async function POST(request: Request) {
     if (error) throw error;
 
     return NextResponse.json({ promotion, message: "Promo code created successfully" });
-  } catch (error: unknown) {
-    console.error("Error creating promotion:", error);
-    const message = error instanceof Error ? error.message : "Internal Server Error";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (error: any) {
+    console.error("[Promotions API] Error creating promotion:", error);
+    console.error("[Promotions API] Error details:", {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint
+    });
+    return NextResponse.json({
+      error: "Internal Server Error",
+      message: error.message,
+      code: error.code,
+      details: error.details
+    }, { status: 500 });
   }
 }
 
@@ -108,7 +117,7 @@ export async function PATCH(request: Request) {
 
     const { error } = await supabase
       .from("promotions")
-      .update({ is_active, updated_at: new Date().toISOString() })
+      .update({ is_active })
       .eq("id", id);
 
     if (error) throw error;
