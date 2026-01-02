@@ -17,6 +17,14 @@ export interface Product {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  variants?: {
+    id: string;
+    name: string; // Color name
+    sku: string;
+    stock: number; // or inventory_count
+    image_url: string | null;
+    attributes: Record<string, any>;
+  }[];
 }
 
 export interface ProductFilters {
@@ -100,7 +108,10 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
 
     const { data, error } = await supabase
       .from("products")
-      .select("*")
+      .select(`
+        *,
+        variants:product_variants(*)
+      `)
       .eq("slug", slug)
       .eq("is_active", true)
       .single();
@@ -142,7 +153,7 @@ export async function getProductsByCategory(
 
     let query = supabase
       .from("products")
-      .select("*", { count: "exact" })
+      .select("*, variants:product_variants(*)", { count: "exact" })
       .eq("is_active", true)
       .range(from, to)
       .order("created_at", { ascending: false });

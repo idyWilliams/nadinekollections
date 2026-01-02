@@ -35,7 +35,7 @@ export default function ContactPage() {
               <div>
                 <h3 className="font-semibold text-lg">Visit us</h3>
                 <p className="text-text-secondary">Come say hello at our office HQ.</p>
-                <p className="text-text-primary font-medium">100 Smith Street<br/>Lekki Phase 1, Lagos</p>
+                <p className="text-text-primary font-medium">Kuje Shopping Complex<br/>F.C.T Abuja, Nigeria</p>
               </div>
             </div>
 
@@ -46,7 +46,7 @@ export default function ContactPage() {
               <div>
                 <h3 className="font-semibold text-lg">Call us</h3>
                 <p className="text-text-secondary">Mon-Fri from 8am to 5pm.</p>
-                <a href="tel:+2348000000000" className="text-primary font-medium">+234 800 000 0000</a>
+                <a href="tel:+2347030058002" className="text-primary font-medium">+234 703 005 8002</a>
               </div>
             </div>
           </div>

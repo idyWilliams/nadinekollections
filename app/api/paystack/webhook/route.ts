@@ -72,6 +72,27 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: "Database update failed" }, { status: 500 });
       }
 
+      // --- Inventory Management: Decrement Stock ---
+      // Fetch order items to process stock
+      const { data: orderItems, error: itemsError } = await supabase
+        .from("order_items")
+        .select("product_id, variant_id, quantity")
+        .eq("order_id", order.id);
+
+      if (!itemsError && orderItems) {
+        const { decreaseStock, decreaseVariantStock } = await import("@/lib/services/inventory");
+
+        for (const item of orderItems) {
+          // 1. Always decrease main product stock (total inventory)
+          await decreaseStock(item.product_id, item.quantity);
+
+          // 2. If variant exists, decrease variant stock
+          if (item.variant_id) {
+            await decreaseVariantStock(item.variant_id, item.quantity);
+          }
+        }
+      }
+
       // Send Notifications
       const orderIdShort = order.id.slice(0, 8);
       const amountFormatted = new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(order.total_amount);

@@ -409,9 +409,14 @@ export default function CheckoutPage() {
                   )}
                 </div>
               )}
-              <Button className="w-full btn-primary" onClick={() => setStep(2)}>
-                Continue to Payment
-              </Button>
+              <div className="flex gap-4">
+                <Button variant="outline" className="flex-1" onClick={() => router.push("/cart")}>
+                  Back to Cart
+                </Button>
+                <Button className="flex-[2] btn-primary" onClick={() => setStep(2)}>
+                  Continue to Payment
+                </Button>
+              </div>
             </div>
           )}
 

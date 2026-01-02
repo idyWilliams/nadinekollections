@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Upload, X, GripVertical, Tag, DollarSign, Package, Image as ImageIcon, Eye, ChevronDown } from "lucide-react";
+import { Upload, X, GripVertical, Tag, DollarSign, Package, Image as ImageIcon, Eye, ChevronDown, Info, Plus, Trash2, Wand2 } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
 import {
@@ -46,6 +46,7 @@ interface ProductFormProps {
     gallery_images?: string[];
     is_featured?: boolean;
     is_active?: boolean;
+    variants?: ProductVariant[];
   };
   isEditing?: boolean;
 }
@@ -66,6 +67,15 @@ interface FormData {
   isActive: boolean;
 }
 
+interface ProductVariant {
+  id?: string;
+  name: string;
+  sku: string;
+  stock: number;
+  image_url?: string;
+  hex?: string; // For custom colors like "Sea Green"
+}
+
 export function ProductForm({ initialData, isEditing = false }: ProductFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -75,11 +85,45 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
     id: string;
     code: string;
     is_active: boolean;
-    coupon_code?: string;
-    promo_type?: string;
-    discount_value?: number;
+    type?: string;
+    value?: number;
   }>>([]);
+
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [variantInput, setVariantInput] = useState<ProductVariant>({
+    name: "",
+    sku: "",
+    stock: 0,
+    image_url: "",
+    hex: "#000000",
+  });
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [hasVariants, setHasVariants] = useState(false); // New Toggle State
+
+  // Smart Color Detection
+  const colorMap: Record<string, string> = {
+    "red": "#EF4444", "blue": "#3B82F6", "green": "#22C55E",
+    "black": "#000000", "white": "#FFFFFF", "yellow": "#EAB308",
+    "purple": "#A855F7", "orange": "#F97316", "pink": "#EC4899",
+    "gray": "#6B7280", "navy": "#1E3A8A", "teal": "#14B8A6",
+    "cyan": "#06B6D4", "indigo": "#6366F1", "lime": "#84CC16",
+    "emerald": "#10B981", "rose": "#F43F5E", "sky": "#0EA5E9",
+    "amber": "#F59E0B", "violet": "#8B5CF6", "fuchsia": "#D946EF",
+    "slate": "#64748B", "zinc": "#71717A", "neutral": "#737373",
+    "stone": "#78716C", "brown": "#78350F"
+  };
+
+  const handleVariantNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const name = e.target.value;
+    const lowerName = name.toLowerCase().trim();
+    let hex = variantInput.hex || "#000000";
+
+    if (colorMap[lowerName]) {
+      hex = colorMap[lowerName];
+    }
+
+    setVariantInput({ ...variantInput, name, hex });
+  };
 
   const [formData, setFormData] = useState<FormData>({
     title: "",
@@ -116,8 +160,33 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
         isActive: initialData.is_active !== false,
       });
       setImages(initialData.images || (initialData.primary_image ? [initialData.primary_image, ...(initialData.gallery_images || [])] : []));
+
+      // Load variants if they exist in initialData
+      if ((initialData as any).variants && (initialData as any).variants.length > 0) {
+        setVariants((initialData as any).variants);
+        setHasVariants(true);
+      }
     }
   }, [initialData]);
+
+  // Effect: Calculate remaining stock and validate
+  const totalVariantStock = variants.reduce((sum, v) => sum + (Number(v.stock) || 0), 0);
+  const remainingStock = (parseInt(formData.stock) || 0) - totalVariantStock;
+
+  // Auto-sync images from variants if enabled
+  useEffect(() => {
+    if (hasVariants) {
+      // Collect unique non-empty images from variants
+      const variantImages = variants
+        .map(v => v.image_url)
+        .filter((url): url is string => !!url);
+
+      // Only update if different to avoid loops/jitters
+      if (JSON.stringify(variantImages) !== JSON.stringify(images)) {
+        setImages(variantImages);
+      }
+    }
+  }, [variants, hasVariants]);
 
   // Fetch promotions
   useEffect(() => {
@@ -251,6 +320,68 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
     e.target.value = "";
   };
 
+  const handleVariantImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+
+    const file = e.target.files[0];
+    const supabase = createClient();
+    setIsUploading(true);
+
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `variants/${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `products/${fileName}`;
+
+      const { error } = await supabase.storage
+        .from("NadineKollections")
+        .upload(filePath, file);
+
+      if (error) throw error;
+
+      const { data: urlData } = supabase.storage
+        .from("NadineKollections")
+        .getPublicUrl(filePath);
+
+      setVariantInput(prev => ({ ...prev, image_url: urlData.publicUrl }));
+      toast.success("Variant image uploaded");
+    } catch (error) {
+      console.error("Variant upload error:", error);
+      toast.error("Failed to upload variant image");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleAddVariant = () => {
+    if (!variantInput.name) {
+      toast.error("Please enter a variant name (e.g., Red)");
+      return;
+    }
+
+    setVariants([...variants, { ...variantInput, id: Math.random().toString(36).substr(2, 9) }]);
+
+    // Auto-add variant image to main gallery if present and unique
+    if (variantInput.image_url && !images.includes(variantInput.image_url)) {
+      setImages(prev => [...prev, variantInput.image_url!]);
+    }
+
+    setVariantInput({
+      name: "",
+      sku: "",
+      stock: 0,
+      image_url: "",
+      hex: "#000000",
+    });
+    // Reset file input if possible via ref, or let user do it
+    toast.success("Variant added");
+  };
+
+  const handleRemoveVariant = (index: number) => {
+    const newVariants = [...variants];
+    newVariants.splice(index, 1);
+    setVariants(newVariants);
+  };
+
   const removeImage = (index: number) => {
     setImages(images.filter((_, i) => i !== index));
   };
@@ -286,6 +417,16 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
       return Math.round(((original - sale) / original) * 100);
     }
     return 0;
+  };
+
+  const generateSKU = () => {
+    const categoryCode = formData.category[0]?.substring(0, 3).toUpperCase() || "GEN";
+    const titleCode = formData.title
+      .substring(0, 3)
+      .toUpperCase()
+      .replace(/[^A-Z]/g, "X");
+    const randomNum = Math.floor(1000 + Math.random() * 9000); // 4 digit random
+    return `${categoryCode}-${titleCode}-${randomNum}`;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -333,7 +474,7 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
         sale_price: salePrice,
         price: salePrice,
         stock: parseInt(formData.stock) || 0,
-        sku: formData.sku || null,
+        sku: formData.sku?.trim() || null, // Ensure empty string becomes null
         images: images,
         // Removed legacy fields to avoid schema cache errors
         promotion_id: formData.promotionId || null,
@@ -346,6 +487,8 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
       };
 
       let error;
+      let productId = initialData?.id;
+
       if (isEditing && initialData?.id) {
         const { error: updateError } = await supabase
           .from("products")
@@ -353,13 +496,51 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
           .eq("id", initialData.id);
         error = updateError;
       } else {
-        const { error: insertError } = await supabase
+        const { data: newProduct, error: insertError } = await supabase
           .from("products")
-          .insert(productData);
+          .insert(productData)
+          .select()
+          .single();
+
         error = insertError;
+        if (newProduct) productId = newProduct.id;
       }
 
       if (error) throw error;
+
+      // Handle Variants
+      if (productId) {
+        // First delete existing variants if editing (simple replace strategy)
+        if (isEditing) {
+          const { error: deleteError } = await supabase
+            .from("product_variants")
+            .delete()
+            .eq("product_id", productId);
+
+          if (deleteError) console.error("Error deleting old variants:", deleteError);
+        }
+
+        // Insert new variants
+        if (hasVariants && variants.length > 0) {
+          const variantsToInsert = variants.map(v => ({
+            product_id: productId,
+            name: v.name,
+            sku: v.sku,
+            inventory_count: v.stock, // FIXED: Map stock to inventory_count
+            image_url: v.image_url,
+            attributes: { color: v.name, hex: v.hex } // Storing name and HEX for complex colors
+          }));
+
+          const { error: variantsError } = await supabase
+            .from("product_variants")
+            .insert(variantsToInsert);
+
+          if (variantsError) {
+            console.error("Error saving variants:", variantsError);
+            toast.error("Product saved but variants failed to save");
+          }
+        }
+      }
 
       toast.success(isEditing ? "Product updated successfully!" : "Product created successfully!");
 
@@ -370,9 +551,15 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
 
       router.push("/admin/products");
       router.refresh();
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error("Error saving product:", error);
-      const message = error instanceof Error ? error.message : "Failed to save product";
+      let message = error instanceof Error ? error.message : "Failed to save product";
+
+      // Handle Supabase unique constraint error for SKU
+      if (error?.code === "23505" || message.includes("products_sku_key")) {
+        message = "This SKU is already in use by another product. Please use a unique SKU.";
+      }
+
       toast.error(message);
     } finally {
       setIsLoading(false);
@@ -489,15 +676,6 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
                 </DropdownMenu>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="sku">SKU (Stock Keeping Unit)</Label>
-                <Input
-                  id="sku"
-                  value={formData.sku}
-                  onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                  placeholder="e.g., WMN-DRS-001"
-                />
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -563,10 +741,47 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
                   value={formData.stock}
                   onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
                   placeholder="0"
+                  className={hasVariants ? "border-primary/50" : ""}
                 />
+                {hasVariants && (
+                  <div className={`text-xs mt-1 font-medium ${remainingStock < 0 ? "text-destructive" : "text-emerald-600"}`}>
+                    {remainingStock >= 0
+                      ? `${remainingStock} remaining to assign`
+                      : `${Math.abs(remainingStock)} over assigned! Increase total stock.`}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="sku" className="flex items-center gap-1">
+                    SKU (Optional)
+                    <div title="Stock Keeping Unit: A unique code to track inventory. Click the wand to generate one." className="cursor-help text-text-secondary">
+                      <Info className="h-4 w-4" />
+                    </div>
+                  </Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs text-primary gap-1"
+                    onClick={() => setFormData({ ...formData, sku: generateSKU() })}
+                  >
+                    <Wand2 className="h-3 w-3" /> Generate
+                  </Button>
+                </div>
+                <Input
+                  id="sku"
+                  value={formData.sku}
+                  onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                  placeholder="e.g. WMN-DRS-001"
+                />
+                <p className="text-[10px] text-text-secondary">
+                  Unique ID for inventory tracking. Leave empty to auto-assign internal ID.
+                </p>
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="promotion">Apply Promotion (Optional)</Label>
                 <select
                   id="promotion"
@@ -577,7 +792,7 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
                   <option value="">No promotion</option>
                   {promotions.map((promo) => (
                     <option key={promo.id} value={promo.id}>
-                      {promo.coupon_code} - {promo.promo_type === "percentage" ? `${promo.discount_value}%` : `₦${promo.discount_value}`}
+                      {promo.code} - {promo.type === "percentage" ? `${promo.value}%` : `₦${promo.value}`}
                     </option>
                   ))}
                 </select>
@@ -586,83 +801,244 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
           </CardContent>
         </Card>
 
-        {/* Images */}
+        {/* Variants Manager */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <ImageIcon className="h-5 w-5" />
-              Product Images *
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Tag className="h-5 w-5" />
+                  Product Variants (Colors)
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="hasVariants" className="text-sm font-normal text-text-secondary">Enable Variants?</Label>
+                  <input
+                    type="checkbox"
+                    id="hasVariants"
+                    className="toggle-checkbox h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary"
+                    checked={hasVariants}
+                    onChange={(e) => setHasVariants(e.target.checked)}
+                  />
+                </div>
+              </div>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {images.map((img, idx) => (
-                <div key={idx} className="relative group aspect-square">
-                  <div className="relative h-full w-full rounded-lg overflow-hidden border-2 border-border-light bg-gray-50">
-                    <div className="relative w-full h-full">
-                      <Image
-                        src={img}
-                        alt={`Product ${idx + 1}`}
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw"
-                        onError={() => {
-                          // Note: Next.js Image component doesn't have simple onError like img
-                          // We might need a separate state or wrapper for fallback,
-                          // but for now relying on valid URLs.
-                          // If fallback is critical, we'd need a custom component.
-                          console.error("Error loading image", img);
-                        }}
+          {hasVariants && (
+            <CardContent className="space-y-6">
+              <div className="flex gap-4 items-end flex-wrap">
+                <div className="space-y-2 flex-1 min-w-[200px]">
+                  <Label>Color Name & Value</Label>
+                  <div className="relative flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <Input
+                        placeholder="e.g. Nearly Black, Sea Green"
+                        value={variantInput.name}
+                        onChange={(e) => setVariantInput({ ...variantInput, name: e.target.value })}
+                        className="pl-9"
+                      />
+                      <div
+                        className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border shadow-sm"
+                        style={{ backgroundColor: variantInput.hex || '#000000' }}
                       />
                     </div>
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => removeImage(idx)}
-                        className="p-2 rounded-full bg-error text-white hover:bg-error/80"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                      {idx > 0 && (
+                    <div title="Pick the exact color">
+                      <Input
+                        type="color"
+                        className="w-12 h-10 p-1 cursor-pointer"
+                        value={variantInput.hex || '#000000'}
+                        onChange={(e) => setVariantInput({ ...variantInput, hex: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2 w-32">
+                  <Label>SKU</Label>
+                  <Input
+                    placeholder="Optional"
+                    value={variantInput.sku}
+                    onChange={(e) => setVariantInput({ ...variantInput, sku: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2 w-24">
+                  <Label>Stock</Label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={variantInput.stock}
+                    onChange={(e) => setVariantInput({ ...variantInput, stock: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Image (Optional)</Label>
+                  <div className="flex items-center gap-2">
+                    {variantInput.image_url ? (
+                      <div className="relative h-10 w-10 rounded border overflow-hidden">
+                        <Image src={variantInput.image_url} alt="Variant" fill className="object-cover" />
                         <button
                           type="button"
-                          onClick={() => moveImage(idx, idx - 1)}
-                          className="p-2 rounded-full bg-white text-black hover:bg-gray-200"
+                          className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 flex items-center justify-center text-white"
+                          onClick={() => setVariantInput({ ...variantInput, image_url: "" })}
                         >
-                          <GripVertical className="h-4 w-4" />
+                          <X className="h-4 w-4" />
                         </button>
-                      )}
-                    </div>
-                    {idx === 0 && (
-                      <Badge className="absolute top-2 left-2 bg-primary">Primary</Badge>
+                      </div>
+                    ) : (
+                      <Input
+                        type="file"
+                        className="w-48"
+                        accept="image/*"
+                        onChange={handleVariantImageUpload}
+                        disabled={isUploading}
+                      />
                     )}
                   </div>
                 </div>
-              ))}
+                <Button type="button" onClick={handleAddVariant} disabled={!variantInput.name || isUploading}>
+                  <Plus className="h-4 w-4 mr-1" /> Add
+                </Button>
+              </div>
 
-              <label className={`flex aspect-square cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border-light hover:border-primary hover:bg-primary/5 transition-colors ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
-                {isUploading ? (
-                  <div className="flex flex-col items-center animate-pulse">
-                    <Upload className="h-8 w-8 text-primary animate-bounce" />
-                    <span className="mt-2 text-sm text-primary font-medium">Uploading...</span>
+              <div className="border rounded-lg divide-y">
+                {variants.length === 0 ? (
+                  <div className="p-8 text-center text-sm text-text-secondary">
+                    No variants added yet. Add colors or options above.
                   </div>
                 ) : (
-                  <>
-                    <Upload className="h-8 w-8 text-text-muted" />
-                    <span className="mt-2 text-sm text-text-muted">Upload Image</span>
-                    <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} disabled={isUploading} />
-                  </>
+                  variants.map((variant, idx) => (
+                    <div key={idx} className="p-3 flex items-center justify-between hover:bg-muted/30">
+                      <div className="flex items-center gap-4">
+                        <div className="h-10 w-10 rounded border bg-gray-50 flex-shrink-0 relative overflow-hidden">
+                          {variant.image_url ? (
+                            <Image src={variant.image_url} alt={variant.name} fill className="object-cover" />
+                          ) : (
+                            <Tag className="h-4 w-4 m-auto text-gray-400" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">{variant.name}</p>
+                          <p className="text-xs text-text-secondary">SKU: {variant.sku || "N/A"} • Stock: {variant.stock}</p>
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => handleRemoveVariant(idx)} className="text-destructive hover:text-destructive">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))
                 )}
-              </label>
-            </div>
-            <p className="text-sm text-text-secondary">
-              First image will be the primary image. Click and drag to reorder.
-            </p>
-          </CardContent>
+              </div>
+            </CardContent>
+          )}
         </Card>
 
+        {/* Images - Hidden if Variants Enabled (Source of Truth is Variants) */}
+        {!hasVariants && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ImageIcon className="h-5 w-5" />
+                Product Images *
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* ... Standard Image Upload UI ... */}
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {images.map((img, idx) => (
+                  <div key={idx} className="relative group aspect-square">
+                    <div className="relative h-full w-full rounded-lg overflow-hidden border-2 border-border-light bg-gray-50">
+                      <div className="relative w-full h-full">
+                        <Image
+                          src={img}
+                          alt={`Product ${idx + 1}`}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw"
+                          onError={() => {
+                            // Note: Next.js Image component doesn't have simple onError like img
+                            // We might need a separate state or wrapper for fallback,
+                            // but for now relying on valid URLs.
+                            // If fallback is critical, we'd need a custom component.
+                            console.error("Error loading image", img);
+                          }}
+                        />
+                      </div>
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => removeImage(idx)}
+                          className="p-2 rounded-full bg-error text-white hover:bg-error/80"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                        {idx > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => moveImage(idx, idx - 1)}
+                            className="p-2 rounded-full bg-white text-black hover:bg-gray-200"
+                          >
+                            <GripVertical className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      {idx === 0 && (
+                        <Badge className="absolute top-2 left-2 bg-primary">Primary</Badge>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                <label className={`flex aspect-square cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border-light hover:border-primary hover:bg-primary/5 transition-colors ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                  {isUploading ? (
+                    <div className="flex flex-col items-center animate-pulse">
+                      <Upload className="h-8 w-8 text-primary animate-bounce" />
+                      <span className="mt-2 text-sm text-primary font-medium">Uploading...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <Upload className="h-8 w-8 text-text-muted" />
+                      <span className="mt-2 text-sm text-text-muted">Upload Image</span>
+                      <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} disabled={isUploading} />
+                    </>
+                  )}
+                </label>
+              </div>
+              <p className="text-sm text-text-secondary">
+                First image will be the primary image. Click and drag to reorder.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Variant Images Preview (When hasVariants is True) */}
+        {hasVariants && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ImageIcon className="h-5 w-5" />
+                Product Images (From Variants)
+              </CardTitle>
+              <p className="text-sm text-text-secondary font-normal">
+                These images are automatically collected from your variants. The first image will be the primary one.
+              </p>
+            </CardHeader>
+            <CardContent>
+              {images.length === 0 ? (
+                <p className="text-sm text-text-secondary italic">Add images to your variants above to populate the gallery.</p>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  {images.map((img, idx) => (
+                    <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border">
+                      <Image src={img} alt="Variant view" fill className="object-cover" />
+                      {idx === 0 && <span className="absolute top-2 left-2 bg-primary text-white text-[10px] px-2 py-0.5 rounded-full">Primary</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Tags & SEO */}
-        <Card>
+        < Card >
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Tag className="h-5 w-5" />
@@ -739,8 +1115,8 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
               />
             </div>
           </CardContent>
-        </Card>
-      </form>
-    </div>
+        </Card >
+      </form >
+    </div >
   );
 }

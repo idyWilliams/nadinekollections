@@ -201,3 +201,43 @@ export async function setStock(
     return { success: false, message: "Error updating stock" };
   }
 }
+
+/**
+ * Manually decrease variant stock
+ */
+export async function decreaseVariantStock(
+  variantId: string,
+  quantity: number
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const supabase = await createClient();
+
+    const { data: variant, error: fetchError } = await supabase
+      .from("product_variants")
+      .select("stock")
+      .eq("id", variantId)
+      .single();
+
+    if (fetchError || !variant) {
+      return { success: false, message: "Variant not found" };
+    }
+
+    if (variant.stock < quantity) {
+      return { success: false, message: "Insufficient variant stock" };
+    }
+
+    const { error: updateError } = await supabase
+      .from("product_variants")
+      .update({ stock: variant.stock - quantity })
+      .eq("id", variantId);
+
+    if (updateError) {
+      return { success: false, message: "Failed to update variant stock" };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error decreasing variant stock:", error);
+    return { success: false, message: "Error updating variant stock" };
+  }
+}

@@ -41,15 +41,17 @@ export function TryOnCanvas({ image, isGenerating }: TryOnCanvasProps) {
 
       // Add Watermark Text
       if (ctx) {
-        ctx.font = "bold 48px serif";
-        ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+        ctx.font = "bold 64px serif";
+        ctx.fillStyle = "rgba(255, 255, 255, 0.3)"; // Semi-transparent for center
         ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
         ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
         ctx.shadowBlur = 10;
-        ctx.fillText("NadineKollections", canvas.width / 2, canvas.height - 50);
 
-        ctx.font = "24px sans-serif";
-        ctx.fillText("nadinekollections.com", canvas.width / 2, canvas.height - 20);
+        ctx.fillText("NadineKollections", canvas.width / 2, canvas.height / 2);
+
+        ctx.font = "32px sans-serif";
+        ctx.fillText("nadinekollections.com", canvas.width / 2, (canvas.height / 2) + 50);
       }
 
       // Trigger Download
@@ -127,8 +129,8 @@ export function TryOnCanvas({ image, isGenerating }: TryOnCanvasProps) {
             />
 
             {/* Watermark Overlay (Visible on screen too) */}
-            <div className="absolute bottom-4 left-0 right-0 text-center pointer-events-none">
-              <p className="text-white/90 font-heading font-bold text-xl drop-shadow-md">NadineKollections</p>
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <p className="text-white/30 font-heading font-bold text-4xl -rotate-12 select-none">NadineKollections</p>
             </div>
 
             {/* Actions */}

@@ -17,6 +17,10 @@ export function OptimizedImage({
 }: OptimizedImageProps) {
   const [isLoading, setIsLoading] = useState(true);
 
+  if (!src) {
+    return <div className={cn("relative overflow-hidden bg-muted/20 h-full w-full", containerClassName)} />;
+  }
+
   return (
     <div className={cn("relative overflow-hidden bg-muted/20 h-full w-full", containerClassName)}>
       <Image

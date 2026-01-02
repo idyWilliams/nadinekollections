@@ -40,7 +40,7 @@ export default async function CategoryPage({
     // Fetch products for this category
     let query = supabase
       .from("products")
-      .select("*", { count: "exact" })
+      .select("*, variants:product_variants(*)", { count: "exact" })
       .eq("is_active", true)
       .range(from, to);
 
@@ -112,6 +112,7 @@ export default async function CategoryPage({
                       isNew={product.is_new}
                       stock={product.stock}
                       isActive={product.is_active}
+                      variants={product.variants}
                     />
                   ))}
                 </div>

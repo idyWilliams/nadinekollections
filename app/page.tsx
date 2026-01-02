@@ -46,6 +46,7 @@ export default async function Home() {
                   isNew={product.is_new}
                   stock={product.stock}
                   isActive={product.is_active}
+                  variants={product.variants}
                 />
               ))}
             </div>

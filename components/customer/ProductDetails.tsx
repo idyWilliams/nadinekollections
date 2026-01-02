@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,25 +26,71 @@ interface ProductDetailsProps {
   };
 }
 
+import { useRouter, useSearchParams } from "next/navigation"; // Added imports
+
+// ...
+
 export function ProductDetails({ product }: ProductDetailsProps) {
   const [quantity, setQuantity] = useState(1);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [selectedVariant, setSelectedVariant] = useState<any>(null); // Track selected variant
   const { addItem } = useCartStore();
+  const searchParams = useSearchParams(); // Get search params
+
+  const variants = product.variants || [];
+
+  // Effect: Check URL for pre-selected variant
+  useEffect(() => {
+    const variantId = searchParams.get('variantId');
+    if (variantId && variants.length > 0) {
+      const found = variants.find((v: any) => v.id === variantId);
+      if (found) {
+        setSelectedVariant(found);
+      }
+    } else if (variants.length > 0 && !selectedVariant) {
+      // Optional: Auto-select first variant if enforcing
+      // setSelectedVariant(variants[0]);
+    }
+  }, [searchParams, variants]);
+
+  // Combined images: Main product images + variant images
+  // We want to make sure variant images are accessible.
+  // Strategy: If a variant is selected, show its image as "selected" main image.
+
+  const handleVariantSelect = (variant: any) => {
+    setSelectedVariant(variant);
+
+    // If variant has an image, find its index or add it to view?
+    // Simpler approach: If variant has image, override the main display image logic
+    // or just switch the selectedImageIndex to wherever that image is.
+    // For now, let's treat variant image as a high priority separate display or find it in list.
+
+    // Improved: If variant has image, force it to show.
+    // We can assume the variants images might not be in the main `images` array unless added.
+  };
+
+  const currentImage = selectedVariant?.image_url
+    ? selectedVariant.image_url
+    : (product.images && product.images[selectedImageIndex]) || product.primary_image;
 
   const handleAddToCart = () => {
+    if (variants.length > 0 && !selectedVariant) {
+      toast.error("Please select a valid option (e.g. Color)");
+      return;
+    }
+
     addItem({
       id: product.id,
-      title: product.title,
+      title: `${product.title} ${selectedVariant ? `(${selectedVariant.name})` : ''}`,
       price: product.sale_price || product.price,
-      image: product.primary_image,
+      image: selectedVariant?.image_url || product.primary_image,
       quantity: quantity,
+      // variantId: selectedVariant?.id // Add this to store if needed
     });
     toast.success(`Added ${quantity} ${product.title} to cart`);
   };
 
-  const images = product.images && product.images.length > 0
-    ? product.images
-    : [product.primary_image];
+  const imagesList = product.images && product.images.length > 0 ? product.images : [product.primary_image];
 
   const discountPercentage = product.sale_price && product.price > product.sale_price
     ? Math.round(((product.price - product.sale_price) / product.price) * 100)
@@ -56,13 +102,13 @@ export function ProductDetails({ product }: ProductDetailsProps) {
       <div className="space-y-4">
         {/* Main Image */}
         <motion.div
-          key={selectedImageIndex}
-          initial={{ opacity: 0 }}
+          key={currentImage} // Key change triggers animation
+          initial={{ opacity: 0.5 }}
           animate={{ opacity: 1 }}
           className="relative aspect-square overflow-hidden rounded-2xl bg-gray-100 border border-border-light"
         >
           <Image
-            src={images[selectedImageIndex]}
+            src={currentImage}
             alt={product.title}
             fill
             className="object-cover"
@@ -76,18 +122,22 @@ export function ProductDetails({ product }: ProductDetailsProps) {
           )}
         </motion.div>
 
-        {/* Thumbnail Gallery */}
-        {images.length > 1 && (
+        {/* Thumbnail Gallery - Only show base product images for browsing, variant images show on selection */}
+        {imagesList.length > 1 && (
           <div className="grid grid-cols-4 gap-2">
-            {images.map((img, idx) => (
+            {imagesList.map((img, idx) => (
               <button
                 key={idx}
-                onClick={() => setSelectedImageIndex(idx)}
-                className={`relative aspect-square overflow-hidden rounded-lg border-2 transition-all ${
-                  selectedImageIndex === idx
-                    ? "border-primary ring-2 ring-primary/20"
-                    : "border-border-light hover:border-primary/50"
-                }`}
+                onClick={() => {
+                  setSelectedImageIndex(idx);
+                  setSelectedVariant(null); // Reset variant selection if they specifically click a timeline thumbnail?
+                  // Or keep variant selected but show this image?
+                  // Let's reset variant to let them browse 'generic' photos.
+                }}
+                className={`relative aspect-square overflow-hidden rounded-lg border-2 transition-all ${selectedImageIndex === idx && !selectedVariant
+                  ? "border-primary ring-2 ring-primary/20"
+                  : "border-border-light hover:border-primary/50"
+                  }`}
               >
                 <Image
                   src={img}
@@ -131,6 +181,34 @@ export function ProductDetails({ product }: ProductDetailsProps) {
             {product.description}
           </p>
         </div>
+
+        {/* Variants Selection */}
+        {variants.length > 0 && (
+          <div className="space-y-3 pt-4 border-t border-border-light">
+            <span className="font-semibold block text-sm">Select Color / Option:</span>
+            <div className="flex flex-wrap gap-3">
+              {variants.map((variant: any) => (
+                <button
+                  key={variant.id}
+                  onClick={() => handleVariantSelect(variant)}
+                  className={`
+                                relative px-4 py-2 border rounded-full text-sm font-medium transition-all
+                                ${selectedVariant?.id === variant.id
+                      ? "border-primary bg-primary/5 text-primary ring-1 ring-primary"
+                      : "border-border-light hover:border-primary/50 text-text-primary"}
+                            `}
+                >
+                  {variant.name}
+                </button>
+              ))}
+            </div>
+            {selectedVariant && (
+              <p className="text-xs text-text-secondary">
+                SKU: {selectedVariant.sku || "N/A"} • Stock: {selectedVariant.stock || product.stock}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Quantity & Actions */}
         <div className="space-y-6 border-t border-b border-border-light py-8">

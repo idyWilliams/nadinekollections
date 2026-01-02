@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { toast } from "sonner";
 import { useCartStore } from "@/lib/store/cart";
 import { useWishlistStore } from "@/lib/store/wishlist";
@@ -24,6 +25,7 @@ interface ProductCardProps {
   isSale?: boolean;
   stock?: number;
   isActive?: boolean;
+  variants?: any[]; // Using any[] temporarily to match fetched data structure
 }
 
 export function ProductCard({
@@ -37,9 +39,18 @@ export function ProductCard({
   isNew,
   stock = 0,
   isActive = true,
+  variants = []
 }: ProductCardProps) {
   const { addItem } = useCartStore();
   const { addItem: addToWishlist, removeItem, isInWishlist } = useWishlistStore();
+  const [selectedVariant, setSelectedVariant] = React.useState<any>(null);
+
+  // Determine effective image and stock based on selection
+  const displayImage = selectedVariant?.image_url || image;
+  const displayStock = selectedVariant ? selectedVariant.stock : stock;
+  const isOutOfStock = displayStock === 0;
+
+  // Auto-select first variant if available? No, user requested explicit selection
 
   // Calculate discount percentage
   const discountPercentage = salePrice && price > salePrice
@@ -56,17 +67,17 @@ export function ProductCard({
       className="group relative rounded-2xl bg-surface p-3 md:p-4 shadow-card hover:shadow-hover"
     >
       {/* Badges */}
-      <div className="absolute left-3 top-3 md:left-4 md:top-4 z-10 flex flex-col gap-2">
-        {stock === 0 && <Badge variant="destructive">Out of Stock</Badge>}
-        {!isActive && stock > 0 && <Badge variant="secondary">Unavailable</Badge>}
-        {isNew && stock > 0 && isActive && <Badge variant="secondary">New</Badge>}
-        {discountPercentage > 0 && stock > 0 && isActive && (
+      <div className="absolute left-3 top-3 md:left-4 md:top-4 z-10 flex flex-col gap-2 p-2">
+        {isOutOfStock && <Badge variant="destructive">Out of Stock</Badge>}
+        {!isActive && displayStock > 0 && <Badge variant="secondary">Unavailable</Badge>}
+        {isNew && displayStock > 0 && isActive && <Badge variant="secondary">New</Badge>}
+        {discountPercentage > 0 && displayStock > 0 && isActive && (
           <Badge variant="destructive" className="font-bold">
             -{discountPercentage}%
           </Badge>
         )}
-        {stock > 0 && stock < 5 && isActive && (
-          <Badge variant="warning">Only {stock} left!</Badge>
+        {displayStock > 0 && displayStock < 5 && isActive && (
+          <Badge variant="warning">Only {displayStock} left!</Badge>
         )}
       </div>
 
@@ -78,26 +89,26 @@ export function ProductCard({
             removeItem(id);
             toast.info("Removed from wishlist");
           } else {
-            addToWishlist({ id, title, slug, price, image, category });
+            addToWishlist({ id, title, slug, price, image: displayImage, category });
             toast.success("Added to wishlist");
           }
         }}
-        className={`absolute right-3 top-3 md:right-4 md:top-4 z-10 rounded-full p-1.5 md:p-2 backdrop-blur-sm transition-colors ${isInWishlist(id)
-            ? "bg-primary text-white hover:bg-primary/90"
-            : "bg-white/80 text-text-secondary hover:bg-white hover:text-error"
+        className={`absolute right-3 top-3 md:right-4 md:top-4 z-10 rounded-full m-2 p-1.5 md:p-2 backdrop-blur-sm transition-colors ${isInWishlist(id)
+          ? "bg-primary text-white hover:bg-primary/90 "
+          : "bg-white/80 text-text-secondary hover:bg-white hover:text-error"
           }`}
       >
-        <Heart className={`h-5 w-5 ${isInWishlist(id) ? "fill-current" : ""}`} />
+        <Heart className={`h-4 w-4 ${isInWishlist(id) ? "fill-current" : ""}`} />
       </button>
 
       {/* Image */}
-      <Link href={`/shop/${category.toLowerCase()}/${slug}`}>
+      <Link href={`/shop/${category.toLowerCase()}/${slug}${selectedVariant ? `?variantId=${selectedVariant.id}` : ''}`}>
         <div className="relative mb-4 aspect-square overflow-hidden rounded-xl bg-gray-100">
           <OptimizedImage
-            src={image}
+            src={displayImage}
             alt={title}
             fill
-            className={`object-cover transition-transform duration-500 group-hover:scale-110 ${stock === 0 || !isActive ? "opacity-60 grayscale" : ""
+            className={`object-cover transition-transform duration-500 group-hover:scale-110 ${isOutOfStock || !isActive ? "opacity-60 grayscale" : ""
               }`}
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           />
@@ -109,7 +120,7 @@ export function ProductCard({
         <p className="text-xs text-text-muted uppercase tracking-wider">
           {category}
         </p>
-        <Link href={`/shop/${category.toLowerCase()}/${slug}`}>
+        <Link href={`/shop/${category.toLowerCase()}/${slug}${selectedVariant ? `?variantId=${selectedVariant.id}` : ''}`}>
           <h3 className="line-clamp-2 text-base font-semibold text-text-primary group-hover:text-primary">
             {title}
           </h3>
@@ -124,6 +135,32 @@ export function ProductCard({
             </span>
           )}
         </div>
+
+        {/* Variant/Color Dots */}
+        {variants && variants.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {variants.map((v) => {
+              // Use hex from attributes if available, else derive from name or default
+              const colorHex = v.attributes?.hex || v.attributes?.color || v.name;
+              // Simple heuristic check if it's likely a valid CSS color or hex
+              const bgColor = colorHex.startsWith('#') || ['red', 'blue', 'green', 'black', 'white'].some(c => colorHex.toLowerCase().includes(c)) ? colorHex : '#ccc';
+
+              return (
+                <button
+                  key={v.id}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setSelectedVariant(selectedVariant?.id === v.id ? null : v);
+                  }}
+                  className={`w-5 h-5 rounded-full border border-border-light shadow-sm transition-transform hover:scale-110 ${selectedVariant?.id === v.id ? 'ring-2 ring-primary ring-offset-1' : ''}`}
+                  style={{ backgroundColor: bgColor }}
+                  title={`${v.name} (${v.stock} left)`}
+                />
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Quick Add Button */}
@@ -131,21 +168,28 @@ export function ProductCard({
         <Button
           className="w-full gap-2"
           size="sm"
-          disabled={stock === 0 || !isActive}
+          disabled={isOutOfStock || !isActive}
           onClick={() => {
-            if (stock === 0 || !isActive) return;
+            if (isOutOfStock || !isActive) return;
+
+            // Require variant selection if variants exist?
+            // User said "ALLOW USER TO PURCHASE EXACTLY THE COLOR THE WANT INSTEAD OF BUYING EVERYTHING"
+            // If they don't select, we might add the base product (if allowed) or prompt them.
+            // For card, let's allow adding base if no variant selected, BUT if they selected one, add that.
+
             addItem({
               id,
-              title,
+              title: selectedVariant ? `${title} - ${selectedVariant.name}` : title,
               price: salePrice || price,
-              image,
+              image: displayImage,
               quantity: 1,
+              variantId: selectedVariant?.id
             });
-            toast.success(`Added ${title} to cart`);
+            toast.success(`Added ${selectedVariant ? selectedVariant.name : title} to cart`);
           }}
         >
           <ShoppingBag className="h-4 w-4" />
-          {stock === 0 ? "Out of Stock" : !isActive ? "Unavailable" : "Add to Cart"}
+          {isOutOfStock ? "Out of Stock" : !isActive ? "Unavailable" : "Add to Cart"}
         </Button>
       </div>
     </motion.div>
