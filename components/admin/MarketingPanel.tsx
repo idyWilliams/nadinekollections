@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Tag, Globe, Search, Copy, CheckSquare, Loader2, Image as ImageIcon, Trash2, Edit2, ExternalLink, Upload, X } from "lucide-react";
+import { Plus, Tag, Globe, Search, Copy, CheckSquare, Loader2, Image as ImageIcon, Trash2, Edit2, ExternalLink, Upload, X, Info } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { OptimizedImage } from "@/components/ui/optimized-image";
+import { InfoModal } from "@/components/ui/info-modal";
 
 interface Banner {
   id: string;
@@ -61,6 +62,12 @@ export function MarketingPanel() {
   const [runningAudit, setRunningAudit] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
+  const [seoInfoModal, setSeoInfoModal] = useState<{ isOpen: boolean; title: string; message: string; type: "success" | "error" | "info" }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    type: "info",
+  });
 
   // Form state
   const [formData, setFormData] = useState({
@@ -191,11 +198,20 @@ export function MarketingPanel() {
     }
   };
 
-  const deletePromotion = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this promotion?")) return;
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean; promoId: string | null }>({
+    isOpen: false,
+    promoId: null,
+  });
+
+  const handleDeleteClick = (id: string) => {
+    setDeleteConfirmation({ isOpen: true, promoId: id });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirmation.promoId) return;
 
     try {
-      const response = await fetch(`/api/promotions?id=${id}`, {
+      const response = await fetch(`/api/promotions?id=${deleteConfirmation.promoId}`, {
         method: "DELETE",
       });
 
@@ -208,6 +224,8 @@ export function MarketingPanel() {
     } catch (error) {
       console.error("Error deleting promotion:", error);
       toast.error("Failed to delete promotion");
+    } finally {
+      setDeleteConfirmation({ isOpen: false, promoId: null });
     }
   };
 
@@ -364,6 +382,15 @@ export function MarketingPanel() {
     return "Active";
   };
 
+  const getSEOFixTip = (task: string) => {
+    if (task.includes("Sitemap")) return "Ensure you have a `sitemap.ts` or `sitemap.xml` in your `app/` directory and it handles dynamic routes.";
+    if (task.includes("Robots")) return "Create a `robots.ts` or `public/robots.txt` file to control crawler access.";
+    if (task.includes("Meta tags")) return "Update `layout.tsx` metadata export with title, description, and openGraph properties.";
+    if (task.includes("Alt text")) return "Review your images (especially banners/products) and ensure the `alt` prop is descriptive.";
+    if (task.includes("Broken links")) return "Check the console for 404 errors or use the details above to identify and fix invalid href paths.";
+    return "Check your implementation.";
+  };
+
   const activePromos = promotions.filter((p) => p.is_active && getPromoStatus(p) === "Active");
   const totalUsage = promotions.reduce((sum, p) => sum + p.usage_count, 0);
 
@@ -371,7 +398,7 @@ export function MarketingPanel() {
     <div className="space-y-8">
       {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="border-none shadow-card">
+        <Card className="border shadow-card">
           <CardContent className="p-6">
             <div className="flex justify-between items-start mb-2">
               <p className="text-sm text-text-secondary font-medium">Active Promos</p>
@@ -383,7 +410,7 @@ export function MarketingPanel() {
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-card">
+        <Card className="border shadow-card">
           <CardContent className="p-6">
             <div className="flex justify-between items-start mb-2">
               <p className="text-sm text-text-secondary font-medium">Total Usage</p>
@@ -395,7 +422,7 @@ export function MarketingPanel() {
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-card">
+        <Card className="border shadow-card">
           <CardContent className="p-6">
             <div className="flex justify-between items-start mb-2">
               <p className="text-sm text-text-secondary font-medium">SEO Score</p>
@@ -407,7 +434,7 @@ export function MarketingPanel() {
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-card">
+        <Card className="border shadow-card">
           <CardContent className="p-6">
             <div className="flex justify-between items-start mb-2">
               <p className="text-sm text-text-secondary font-medium">Active Banners</p>
@@ -605,7 +632,22 @@ export function MarketingPanel() {
                   >
                     {item.done && <CheckSquare className="h-3 w-3" />}
                   </div>
-                  <div className="flex-1 text-sm">{item.task}</div>
+                  <div className="flex-1 text-sm font-medium">{item.task}</div>
+                  {!item.done && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-text-secondary hover:text-primary"
+                      onClick={() => setSeoInfoModal({
+                        isOpen: true,
+                        title: item.task,
+                        message: `${item.details || "Issue found."}\n\nFIX TIP: ${getSEOFixTip(item.task)}`,
+                        type: "error"
+                      })}
+                    >
+                      <Info className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
@@ -764,7 +806,7 @@ export function MarketingPanel() {
                   <Button variant="ghost" size="icon" onClick={() => handleCopyCode(promo.code)} title="Copy Code">
                     <Copy className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => deletePromotion(promo.id)} title="Delete Promotion">
+                  <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteClick(promo.id)} title="Delete Promotion">
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -773,6 +815,50 @@ export function MarketingPanel() {
           </div>
         </CardContent>
       </Card>
-    </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteConfirmation.isOpen} onOpenChange={(open) => setDeleteConfirmation({ isOpen: open, promoId: open ? deleteConfirmation.promoId : null })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              Delete Promotion?
+            </DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. Please review the consequences below:
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-sm text-destructive-text space-y-2">
+              <p className="font-semibold text-destructive">What will happen:</p>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li>This promotion will be <strong>permanently removed</strong>.</li>
+                <li>Customers currently attempting to use this code will receive an <strong>Invalid Code</strong> error at checkout.</li>
+                <li>Historical orders will lose the link to this promotion details, although the <strong>discount amounts on past orders will remain unchanged</strong> for financial records.</li>
+              </ul>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to proceed?
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirmation({ isOpen: false, promoId: null })}>
+              Cancel
+            </Button>
+            <Button className="bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-sm" onClick={confirmDelete}>
+              Yes, Delete Promotion
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <InfoModal
+        isOpen={seoInfoModal.isOpen}
+        onClose={() => setSeoInfoModal(prev => ({ ...prev, isOpen: false }))}
+        title={seoInfoModal.title}
+        message={seoInfoModal.message}
+        type={seoInfoModal.type}
+      />
+    </div >
   );
 }
