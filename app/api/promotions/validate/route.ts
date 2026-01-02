@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     const { data: promo, error } = await supabase
       .from("promotions")
       .select("*")
-      .eq("coupon_code", code.toUpperCase())
+      .eq("code", code.toUpperCase())
       .eq("is_active", true)
       .single();
 
@@ -32,37 +32,34 @@ export async function POST(request: Request) {
     }
 
     // Check usage limit
-    if (promo.total_usage_limit && promo.usage_count >= promo.total_usage_limit) {
+    if (promo.usage_limit && promo.usage_count >= promo.usage_limit) {
       return NextResponse.json({ error: "Promo code usage limit reached" }, { status: 400 });
     }
 
     // Check minimum order value
-    if (promo.conditions?.min_order_value && orderTotal < promo.conditions.min_order_value) {
+    if (promo.min_order_amount && orderTotal < promo.min_order_amount) {
       return NextResponse.json(
-        { error: `Minimum order value of ₦${promo.conditions.min_order_value} required` },
+        { error: `Minimum order value of ₦${promo.min_order_amount} required` },
         { status: 400 }
       );
     }
 
     // Calculate discount
     let discount = 0;
-    if (promo.promo_type === "percentage") {
-      discount = (orderTotal * promo.discount_value) / 100;
-      // Cap at max discount if specified
-      if (promo.conditions?.max_discount && discount > promo.conditions.max_discount) {
-        discount = promo.conditions.max_discount;
-      }
-    } else if (promo.promo_type === "fixed") {
-      discount = promo.discount_value;
-    } else if (promo.promo_type === "free_shipping") {
-      // Return shipping discount separately
+    if (promo.type === "percentage") {
+      discount = (orderTotal * promo.value) / 100;
+      // Cap at max discount if we add that column later
+      // if (promo.max_discount && discount > promo.max_discount) discount = promo.max_discount;
+    } else if (promo.type === "fixed_amount") {
+      discount = promo.value;
+    } else if (promo.type === "free_shipping") {
       return NextResponse.json({
         valid: true,
         promo_id: promo.id,
         promo_type: "free_shipping",
         discount: 0,
         free_shipping: true,
-        code: promo.coupon_code,
+        code: promo.code,
         name: promo.name,
       });
     }
@@ -70,9 +67,9 @@ export async function POST(request: Request) {
     return NextResponse.json({
       valid: true,
       promo_id: promo.id,
-      promo_type: promo.promo_type,
+      promo_type: promo.type,
       discount: Math.min(discount, orderTotal), // Don't exceed order total
-      code: promo.coupon_code,
+      code: promo.code,
       name: promo.name,
     });
   } catch (error: unknown) {

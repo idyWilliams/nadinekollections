@@ -35,11 +35,11 @@ interface Banner {
 interface Promotion {
   id: string;
   name: string;
-  coupon_code: string;
-  promo_type: string;
-  discount_value: number;
+  code: string;
+  type: string;
+  value: number;
   usage_count: number;
-  total_usage_limit?: number;
+  usage_limit?: number;
   is_active: boolean;
   end_date?: string;
 }
@@ -188,6 +188,26 @@ export function MarketingPanel() {
       fetchPromotions();
     } catch {
       toast.error("Failed to update promo");
+    }
+  };
+
+  const deletePromotion = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this promotion?")) return;
+
+    try {
+      const response = await fetch(`/api/promotions?id=${id}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        toast.success("Promotion deleted");
+        fetchPromotions();
+      } else {
+        throw new Error("Failed to delete promotion");
+      }
+    } catch (error) {
+      console.error("Error deleting promotion:", error);
+      toast.error("Failed to delete promotion");
     }
   };
 
@@ -340,7 +360,7 @@ export function MarketingPanel() {
   const getPromoStatus = (promo: Promotion) => {
     if (!promo.is_active) return "Inactive";
     if (promo.end_date && new Date(promo.end_date) < new Date()) return "Expired";
-    if (promo.total_usage_limit && promo.usage_count >= promo.total_usage_limit) return "Limit Reached";
+    if (promo.usage_limit && promo.usage_count >= promo.usage_limit) return "Limit Reached";
     return "Active";
   };
 
@@ -713,14 +733,40 @@ export function MarketingPanel() {
             {promotions.map((promo) => (
               <div key={promo.id} className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border border-border-light">
                 <div>
-                  <h4 className="font-bold">{promo.coupon_code}</h4>
-                  <p className="text-sm text-text-secondary">{promo.promo_type} • {promo.usage_count} uses</p>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h4 className="font-bold">{promo.code}</h4>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium border ${getPromoStatus(promo) === "Active"
+                      ? "bg-success/10 text-success border-success/20"
+                      : getPromoStatus(promo) === "Expired" || getPromoStatus(promo) === "Limit Reached"
+                        ? "bg-destructive/10 text-destructive border-destructive/20"
+                        : "bg-muted text-muted-foreground border-border"
+                      }`}>
+                      {getPromoStatus(promo)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-text-secondary">
+                    <span>{promo.name}</span>
+                    <span>•</span>
+                    <span>{promo.type === 'percentage' ? `${promo.value}% off` : `₦${promo.value} off`}</span>
+                    <span>•</span>
+                    <span>{promo.usage_count} / {promo.usage_limit || "∞"} uses</span>
+                  </div>
+                  {promo.end_date && (
+                    <p className="text-xs text-text-muted mt-1">
+                      Expires: {new Date(promo.end_date).toLocaleDateString()}
+                    </p>
+                  )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => handleTogglePromo(promo.id, promo.is_active)}>
-                    {promo.is_active ? "Deactivate" : "Activate"}
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => handleTogglePromo(promo.id, promo.is_active)} title={promo.is_active ? "Deactivate" : "Activate"}>
+                    {promo.is_active ? <CheckSquare className="h-4 w-4 text-success" /> : <X className="h-4 w-4 text-text-muted" />}
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleCopyCode(promo.coupon_code)}><Copy className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleCopyCode(promo.code)} title="Copy Code">
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => deletePromotion(promo.id)} title="Delete Promotion">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             ))}

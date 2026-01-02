@@ -13,6 +13,9 @@ CREATE INDEX IF NOT EXISTS idx_profiles_deleted_at ON public.profiles(deleted_at
 -- Create index for faster queries on active users
 CREATE INDEX IF NOT EXISTS idx_profiles_is_active ON public.profiles(is_active);
 
+-- Add promotion_id to orders table
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS promotion_id UUID REFERENCES public.promotions(id) ON DELETE SET NULL;
+
 -- 2. Create store_settings table if it doesn't exist
 CREATE TABLE IF NOT EXISTS public.store_settings (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
