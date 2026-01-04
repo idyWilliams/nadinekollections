@@ -56,9 +56,11 @@ export function LowStockWidget({ items }: LowStockWidgetProps) {
                     Only <span className="text-error font-bold">{item.stock}</span> left
                   </p>
                 </div>
-                <Button size="sm" variant="outline" className="h-7 text-xs">
-                  Restock
-                </Button>
+                <Link href={`/admin/products?search=${encodeURIComponent(item.title.split(' - ')[0])}`}>
+                  <Button size="sm" variant="outline" className="h-7 text-xs">
+                    Restock
+                  </Button>
+                </Link>
               </div>
             ))}
           </div>

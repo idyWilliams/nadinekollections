@@ -162,7 +162,7 @@ export function CustomersTable({ customers }: Props) {
                           <Mail className="mr-2 h-4 w-4" /> Email Customer
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); router.push(`/admin/orders?customer=${customer.id}`); }}>
                           View Order History
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -229,7 +229,11 @@ export function CustomersTable({ customers }: Props) {
                               >
                                 <Mail className="h-4 w-4" /> Send Quick Email
                               </Button>
-                              <Button variant="outline" className="w-full gap-2">
+                              <Button
+                                variant="outline"
+                                className="w-full gap-2"
+                                onClick={() => router.push(`/admin/orders?customer=${customer.id}`)}
+                              >
                                 <CreditCard className="h-4 w-4" /> View Transactions
                               </Button>
                             </div>
@@ -337,7 +341,12 @@ export function CustomersTable({ customers }: Props) {
                       >
                         <Mail className="h-3 w-3 mr-1" /> Email
                       </Button>
-                      <Button size="sm" variant="outline" className="flex-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => router.push(`/admin/orders?customer=${customer.id}`)}
+                      >
                         <CreditCard className="h-3 w-3 mr-1" /> Orders
                       </Button>
                     </div>

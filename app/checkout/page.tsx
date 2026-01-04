@@ -131,11 +131,50 @@ export default function CheckoutPage() {
     fetchSettings();
   }, [supabase]);
 
-  // Check if user is logged in
+  // Check if user is logged in and fetch billing info
   useEffect(() => {
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setCurrentUser(user);
+
+      if (user) {
+        // Fetch profile for billing_info
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('billing_info, phone, full_name')
+          .eq('id', user.id)
+          .single();
+
+        if (profile) {
+          const names = profile.full_name?.split(' ') || [];
+          const firstName = names[0] || "";
+          const lastName = names.slice(1).join(' ') || "";
+
+          const billing = profile.billing_info as any;
+          if (billing) {
+            setFormData(prev => ({
+              ...prev,
+              firstName: prev.firstName || firstName,
+              lastName: prev.lastName || lastName,
+              phone: prev.phone || profile.phone || "",
+              email: prev.email || user.email || "",
+              address: billing.line1 || billing.address || "",
+              city: billing.city || "",
+              state: billing.state || "",
+              zip: billing.zip || "",
+            }));
+          } else {
+            // Just fill basic info if no billing info saved
+            setFormData(prev => ({
+              ...prev,
+              firstName: prev.firstName || firstName,
+              lastName: prev.lastName || lastName,
+              phone: prev.phone || profile.phone || "",
+              email: prev.email || user.email || "",
+            }));
+          }
+        }
+      }
     };
     checkUser();
   }, [supabase]);
@@ -249,6 +288,22 @@ export default function CheckoutPage() {
               payment_reference: response.reference || response.transaction_id
             })
             .eq('id', order.id);
+
+          // Update user profile billing info if logged in
+          if (user) {
+            await supabase
+              .from('profiles')
+              .update({
+                billing_info: {
+                  line1: formData.address,
+                  city: formData.city,
+                  state: formData.state,
+                  zip: formData.zip,
+                },
+                phone: formData.phone // Also sync phone
+              })
+              .eq('id', user.id);
+          }
 
           setStep(3); // Move to confirmation
           clearCart();

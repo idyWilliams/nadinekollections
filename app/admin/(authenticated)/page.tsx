@@ -144,7 +144,7 @@ export default async function AdminDashboard() {
       .limit(5),
     supabase
       .from("product_variants")
-      .select("id, name, inventory_count, products(title, primary_image)")
+      .select("id, name, inventory_count, product_id, products(title, primary_image)")
       .lt("inventory_count", 10)
       .limit(5)
   ]);
@@ -154,7 +154,8 @@ export default async function AdminDashboard() {
       id: item.id,
       title: item.title,
       stock: item.stock,
-      image: item.primary_image || "/placeholder.png"
+      image: item.primary_image || "/placeholder.png",
+      productId: item.id
     })) || []),
     ...(lvData?.map(item => {
       const product = Array.isArray(item.products) ? item.products[0] : item.products;
@@ -162,7 +163,8 @@ export default async function AdminDashboard() {
         id: item.id,
         title: `${product?.title} - ${item.name}`,
         stock: item.inventory_count,
-        image: product?.primary_image || "/placeholder.png"
+        image: product?.primary_image || "/placeholder.png",
+        productId: item.product_id
       };
     }) || [])
   ].sort((a, b) => a.stock - b.stock).slice(0, 5);

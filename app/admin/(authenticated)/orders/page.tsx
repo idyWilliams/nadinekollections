@@ -4,14 +4,20 @@ import { BulkOrdersTable } from "@/components/admin/BulkOrdersTable";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminOrdersPage() {
+export default async function AdminOrdersPage({ searchParams }: { searchParams: { customer?: string } }) {
   const supabase = await createClient();
+  const customerId = searchParams.customer;
 
-  const { data: orders, error } = await supabase
+  let query = supabase
     .from("orders")
-    .select("id, created_at, total_amount, status, user_id, customer_name") // Removed profiles(full_name)
-    .order("created_at", { ascending: false })
-    .limit(50);
+    .select("id, created_at, total_amount, status, user_id, customer_name")
+    .order("created_at", { ascending: false });
+
+  if (customerId) {
+    query = query.eq("user_id", customerId);
+  }
+
+  const { data: orders, error } = await query.limit(50);
 
   if (error) {
     console.error("Error fetching orders:", error);

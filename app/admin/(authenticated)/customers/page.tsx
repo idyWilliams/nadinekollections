@@ -25,20 +25,22 @@ export default async function AdminCustomersPage() {
     const totalSpent = userOrders.reduce((sum, order) => sum + (order.total_amount || 0), 0);
     const lastOrder = userOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
 
-    // Parse address if it's a string (legacy/bug) or object
+    // Priority: 1. billing_address from last order, 2. shipping_address from last order
     let billingInfo = null;
-    if (lastOrder?.shipping_address) {
-        const addr = typeof lastOrder.shipping_address === 'string'
-            ? JSON.parse(lastOrder.shipping_address)
-            : lastOrder.shipping_address;
+    const rawAddress = lastOrder?.billing_address || lastOrder?.shipping_address;
 
-        billingInfo = {
-            address: addr.line1 || addr.address || "N/A",
-            city: addr.city || "N/A",
-            state: addr.state || "N/A",
-            zip: addr.zip || addr.zipCode || "N/A",
-            country: addr.country || "Nigeria"
-        };
+    if (rawAddress) {
+      const addr = typeof rawAddress === 'string'
+        ? JSON.parse(rawAddress)
+        : rawAddress;
+
+      billingInfo = {
+        address: addr.line1 || addr.address || "N/A",
+        city: addr.city || "N/A",
+        state: addr.state || "N/A",
+        zip: addr.zip || addr.zipCode || "N/A",
+        country: addr.country || "Nigeria"
+      };
     }
 
     return {
@@ -48,8 +50,12 @@ export default async function AdminCustomersPage() {
       phone: profile.phone,
       total_orders: userOrders.length,
       total_spent: totalSpent,
-      wishlist_count: 0, // Wishlist is client-side only for now
-      last_order_date: lastOrder ? new Date(lastOrder.created_at).toLocaleDateString() : undefined,
+      wishlist_count: 0,
+      last_order_date: lastOrder ? new Date(lastOrder.created_at).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      }) : "Never",
       billing_info: billingInfo || undefined
     };
   }) || [];
