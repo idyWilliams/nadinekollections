@@ -1,6 +1,7 @@
 
 import { ProductDetails } from "@/components/customer/ProductDetails";
 import { ProductCard } from "@/components/customer/ProductCard";
+import { RecentlyViewedTracker } from "@/components/customer/RecentlyViewedTracker";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
@@ -25,6 +26,17 @@ export default async function ProductPage({
 
   return (
     <div className="min-h-screen bg-background">
+      <RecentlyViewedTracker
+        product={{
+          id: product.id,
+          title: product.title,
+          slug: product.slug,
+          price: product.price,
+          salePrice: product.sale_price ?? undefined,
+          image: product.primary_image || (product.images && product.images[0]) || "/placeholder.jpg",
+          category: Array.isArray(product.category) ? product.category[0] : product.category,
+        }}
+      />
       <main className="container mx-auto px-4 md:px-6 py-12">
         {/* Back Button */}
         <div className="mb-8">

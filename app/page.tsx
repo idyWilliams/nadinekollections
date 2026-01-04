@@ -1,5 +1,6 @@
 import { HeroBanner } from "@/components/customer/HeroBanner";
 import { ProductCard } from "@/components/customer/ProductCard";
+import { RecentlyViewedSection } from "@/components/customer/RecentlyViewedSection";
 import { Button } from "@/components/ui/button";
 
 import Link from "next/link";
@@ -91,23 +92,27 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Newsletter Section */}
-        <section className="py-12 md:py-20 container mx-auto px-4 md:px-6 text-center">
-          <div className="max-w-2xl mx-auto bg-primary/5 rounded-3xl p-8 md:p-12">
-            <h2 className="text-3xl font-bold mb-4">Join the Family</h2>
-            <p className="text-text-secondary mb-8">
-              Subscribe to our newsletter and get 10% off your first order plus exclusive access to new arrivals.
-            </p>
-            <form className="flex flex-col sm:flex-row gap-4 max-w-md mx-auto">
-              <input
-                type="email"
-                placeholder="Enter your email"
-                className="flex-1 rounded-lg border border-border-light px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              <Button className="w-full sm:w-auto">Subscribe</Button>
-            </form>
-          </div>
-        </section>
+        {/* Recently Viewed or Newsletter */}
+        <RecentlyViewedSection
+          fallback={
+            <section className="py-12 md:py-20 container mx-auto px-4 md:px-6 text-center">
+              <div className="max-w-2xl mx-auto bg-primary/5 rounded-3xl p-8 md:p-12">
+                <h2 className="text-3xl font-bold mb-4">Join the Family</h2>
+                <p className="text-text-secondary mb-8">
+                  Subscribe to our newsletter and get 10% off your first order plus exclusive access to new arrivals.
+                </p>
+                <form className="flex flex-col sm:flex-row gap-4 max-w-md mx-auto">
+                  <input
+                    type="email"
+                    placeholder="Enter your email"
+                    className="flex-1 rounded-lg border border-border-light px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <Button className="w-full sm:w-auto">Subscribe</Button>
+                </form>
+              </div>
+            </section>
+          }
+        />
       </main>
     </div>
   );

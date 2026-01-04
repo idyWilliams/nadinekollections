@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
 
 interface Customer {
   id: string;
@@ -57,6 +58,7 @@ interface Props {
 }
 
 export function CustomersTable({ customers }: Props) {
+    const router = useRouter();
   const [search, setSearch] = useState("");
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
