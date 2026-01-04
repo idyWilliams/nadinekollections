@@ -26,7 +26,8 @@ export default async function AdminDashboard() {
   const [
     { count: ordersTodayCount },
     { count: totalProductsCount },
-    { count: lowStockCount },
+    { count: lowStockProductsCount },
+    { count: lowStockVariantsCount },
     { data: revenueData },
     { data: recentOrdersData },
     { data: categoryDataRaw },
@@ -38,8 +39,11 @@ export default async function AdminDashboard() {
     // Active Products
     supabase.from("products").select("*", { count: "exact", head: true }).eq("is_active", true),
 
-    // Low Stock Variants (assuming threshold < 5)
-    supabase.from("product_variants").select("*", { count: "exact", head: true }).lt("inventory_count", 5),
+    // Low Stock Products (threshold < 10)
+    supabase.from("products").select("*", { count: "exact", head: true }).eq("is_active", true).lt("stock", 10),
+
+    // Low Stock Variants (threshold < 10)
+    supabase.from("product_variants").select("*", { count: "exact", head: true }).lt("inventory_count", 10),
 
     // Revenue Data (Last 7 Days) - Fetching paid orders
     supabase
@@ -51,7 +55,7 @@ export default async function AdminDashboard() {
     // Recent Orders
     supabase
       .from("orders")
-      .select("id, created_at, total_amount, status, user_id, customer_name, profiles(full_name)")
+      .select("id, created_at, total_amount, status, user_id, customer_name") // Removed profiles(full_name)
       .order("created_at", { ascending: false })
       .limit(5),
 
@@ -96,9 +100,9 @@ export default async function AdminDashboard() {
 
   // Process Recent Orders
   const recentOrders = recentOrdersData?.map(order => {
-    const profile = Array.isArray(order.profiles) ? order.profiles[0] : order.profiles;
-
-    const fullName = profile?.full_name || order.customer_name || "Guest User";
+    // const profile = Array.isArray(order.profiles) ? order.profiles[0] : order.profiles;
+    // const fullName = profile?.full_name || order.customer_name || "Guest User";
+    const fullName = order.customer_name || "Guest/Anon";
 
     return {
       id: order.id,
@@ -127,24 +131,43 @@ export default async function AdminDashboard() {
     .sort((a, b) => b.value - a.value)
     .slice(0, 10); // Top 10 states
 
-  // Fetch Low Stock Items Details (Top 5)
-  const { data: lowStockItemsData } = await supabase
-    .from("product_variants")
-    .select("id, name, inventory_count, products(title, primary_image)")
-    .lt("inventory_count", 5)
-    .limit(5);
+  // Fetch Low Stock Details (Both Products and Variants)
+  const [
+    { data: lpData },
+    { data: lvData }
+  ] = await Promise.all([
+    supabase
+      .from("products")
+      .select("id, title, stock, primary_image")
+      .eq("is_active", true)
+      .lt("stock", 10)
+      .limit(5),
+    supabase
+      .from("product_variants")
+      .select("id, name, inventory_count, products(title, primary_image)")
+      .lt("inventory_count", 10)
+      .limit(5)
+  ]);
 
-  const lowStockItems = lowStockItemsData?.map(item => {
-    const product = Array.isArray(item.products) ? item.products[0] : item.products;
-    return {
+  const lowStockItems = [
+    ...(lpData?.map(item => ({
       id: item.id,
+      title: item.title,
+      stock: item.stock,
+      image: item.primary_image || "/placeholder.png"
+    })) || []),
+    ...(lvData?.map(item => {
+      const product = Array.isArray(item.products) ? item.products[0] : item.products;
+      return {
+        id: item.id,
+        title: `${product?.title} - ${item.name}`,
+        stock: item.inventory_count,
+        image: product?.primary_image || "/placeholder.png"
+      };
+    }) || [])
+  ].sort((a, b) => a.stock - b.stock).slice(0, 5);
 
-      title: `${product?.title} - ${item.name}`,
-      stock: item.inventory_count,
-
-      image: product?.primary_image || "/placeholder.png"
-    };
-  }) || [];
+  const lowStockTotal = (lowStockProductsCount || 0) + (lowStockVariantsCount || 0);
 
 
   // Stats Array
@@ -178,10 +201,10 @@ export default async function AdminDashboard() {
     },
     {
       title: "Low Stock Alerts",
-      value: (lowStockCount || 0).toString(),
+      value: lowStockTotal.toString(),
       change: "Action Needed",
       icon: AlertTriangle,
-      trend: (lowStockCount || 0) > 0 ? "down" : "neutral",
+      trend: lowStockTotal > 0 ? "down" : "neutral",
       color: "text-red-600",
       bg: "bg-red-100",
     },

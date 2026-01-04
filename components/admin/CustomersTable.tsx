@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import {
   Table,
   TableBody,
@@ -109,12 +109,11 @@ export function CustomersTable({ customers }: Props) {
           </TableHeader>
           <TableBody>
             {filteredCustomers.map((customer) => (
-              <>
+              <Fragment key={customer.id}>
                 <TableRow
                   key={customer.id}
-                  className={`cursor-pointer transition-colors ${
-                    expandedRow === customer.id ? "bg-muted/30" : "hover:bg-muted/10"
-                  }`}
+                  className={`cursor-pointer transition-colors ${expandedRow === customer.id ? "bg-muted/30" : "hover:bg-muted/10"
+                    }`}
                   onClick={() => toggleRow(customer.id)}
                 >
                   <TableCell>
@@ -240,7 +239,7 @@ export function CustomersTable({ customers }: Props) {
                     </TableRow>
                   )}
                 </AnimatePresence>
-              </>
+              </Fragment>
             ))}
           </TableBody>
         </Table>

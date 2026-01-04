@@ -9,7 +9,7 @@ export default async function AdminOrdersPage() {
 
   const { data: orders, error } = await supabase
     .from("orders")
-    .select("id, created_at, total_amount, status, user_id, customer_name, profiles(full_name)")
+    .select("id, created_at, total_amount, status, user_id, customer_name") // Removed profiles(full_name)
     .order("created_at", { ascending: false })
     .limit(50);
 
@@ -21,9 +21,9 @@ export default async function AdminOrdersPage() {
 
   // Format orders for the table
   const formattedOrders = orders?.map(order => {
-    const profile = Array.isArray(order.profiles) ? order.profiles[0] : order.profiles;
-
-    const fullName = profile?.full_name || order.customer_name || "Guest User";
+    // const profile = Array.isArray(order.profiles) ? order.profiles[0] : order.profiles;
+    // const fullName = profile?.full_name || order.customer_name || "Guest User";
+    const fullName = order.customer_name || "Guest/Anon";
 
     return {
       id: order.id,
@@ -31,7 +31,7 @@ export default async function AdminOrdersPage() {
       total: order.total_amount || 0,
       status: order.status || "Pending",
       date: new Date(order.created_at).toLocaleDateString(),
-      items: 1 // Placeholder as we're not fetching items count yet, or we could join with order_items count
+      items: 1 // Placeholder
     };
   }) || [];
 
