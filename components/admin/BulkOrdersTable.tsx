@@ -38,7 +38,12 @@ interface Order {
   total: number;
   status: string;
   date: string;
-  items: number;
+  itemsCount: number;
+  itemDetails: {
+    title: string;
+    image?: string;
+    quantity: number;
+  }[];
 }
 
 interface BulkOrdersTableProps {
@@ -72,7 +77,7 @@ export function BulkOrdersTable({ orders: initialOrders }: BulkOrdersTableProps)
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("id, created_at, total_amount, status, user_id, customer_name, profiles(full_name)")
+        .select("*, order_items(*), profiles(full_name)")
         .order("created_at", { ascending: false })
         .limit(50);
 
@@ -80,16 +85,21 @@ export function BulkOrdersTable({ orders: initialOrders }: BulkOrdersTableProps)
 
       return data.map(order => {
         const profile = Array.isArray(order.profiles) ? order.profiles[0] : order.profiles;
-
         const fullName = profile?.full_name || order.customer_name || "Guest User";
+        const items = order.order_items || [];
 
         return {
           id: order.id,
           customer: fullName,
-          total: order.total_amount || 0,
+          total: order.total_amount || order.total || 0,
           status: order.status || "Pending",
           date: new Date(order.created_at).toLocaleDateString(),
-          items: 1
+          itemsCount: items.length,
+          itemDetails: items.map((item: any) => ({
+            title: item.product_title || item.title,
+            image: item.product_image || item.image,
+            quantity: item.quantity
+          }))
         };
       });
     },
@@ -245,7 +255,7 @@ export function BulkOrdersTable({ orders: initialOrders }: BulkOrdersTableProps)
                 <th className="h-12 px-4 align-middle font-medium text-muted-foreground cursor-pointer hover:text-primary" onClick={() => requestSort('date')}>
                   Date <ArrowUpDown className="inline h-3 w-3 ml-1" />
                 </th>
-                <th className="h-12 px-4 align-middle font-medium text-muted-foreground">Items</th>
+                <th className="h-12 px-4 align-middle font-medium text-muted-foreground">Products</th>
                 <th className="h-12 px-4 align-middle font-medium text-muted-foreground cursor-pointer hover:text-primary" onClick={() => requestSort('status')}>
                   Status <ArrowUpDown className="inline h-3 w-3 ml-1" />
                 </th>
@@ -263,10 +273,31 @@ export function BulkOrdersTable({ orders: initialOrders }: BulkOrdersTableProps)
                       {selectedOrders.includes(order.id) ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4 text-text-muted" />}
                     </button>
                   </td>
-                  <td className="p-4 align-middle font-medium">{order.id}</td>
+                  <td className="p-4 align-middle font-medium">
+                    {order.id.slice(0, 8)}...
+                  </td>
                   <td className="p-4 align-middle">{order.customer}</td>
                   <td className="p-4 align-middle">{order.date}</td>
-                  <td className="p-4 align-middle">{order.items}</td>
+                  <td className="p-4 align-middle">
+                    <div className="flex -space-x-2 overflow-hidden">
+                      {order.itemDetails.slice(0, 3).map((item: any, idx: number) => (
+                        <div key={idx} className="relative h-8 w-8 rounded-full border-2 border-surface bg-muted overflow-hidden" title={item.title}>
+                          {item.image ? (
+                            <img src={item.image} alt={item.title} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-muted text-[10px]">
+                              {item.title.charAt(0)}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {order.itemsCount > 3 && (
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-surface bg-muted text-[10px] font-medium">
+                          +{order.itemsCount - 3}
+                        </div>
+                      )}
+                    </div>
+                  </td>
                   <td className="p-4 align-middle">
                     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors ${order.status === "Delivered" || order.status === "delivered" ? "bg-success/10 text-success" :
                       order.status === "Shipped" || order.status === "shipped" ? "bg-blue-100 text-blue-800" :
@@ -344,7 +375,7 @@ export function BulkOrdersTable({ orders: initialOrders }: BulkOrdersTableProps)
               </div>
               <div>
                 <span className="text-xs text-text-muted">Items</span>
-                <p className="text-sm">{order.items}</p>
+                <p className="text-sm">{order.itemsCount}</p>
               </div>
               <div>
                 <span className="text-xs text-text-muted">Total</span>

@@ -10,9 +10,11 @@ interface Order {
   id: string;
   order_number: string;
   created_at: string;
-  order_status: string;
-  total: number;
-  items?: unknown[];
+  status: string;
+  order_status?: string;
+  total_amount: number;
+  total?: number;
+  order_items?: any[];
 }
 
 export default function AccountPage() {
@@ -28,7 +30,7 @@ export default function AccountPage() {
 
         const { data, error } = await supabase
           .from('orders')
-          .select('*')
+          .select('*, order_items(*)')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false });
 
@@ -73,22 +75,21 @@ export default function AccountPage() {
                   <div>
                     <div className="flex items-center gap-3 mb-1">
                       <span className="font-bold text-lg">{order.order_number}</span>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
-                        order.order_status === 'delivered' ? 'bg-success/10 text-success border-success/20' :
-                        order.order_status === 'processing' ? 'bg-warning/10 text-warning-foreground border-warning/20' :
-                        order.order_status === 'cancelled' || order.order_status === 'failed' ? 'bg-error/10 text-error border-error/20' :
-                        order.order_status === 'returned' ? 'bg-secondary/10 text-secondary-foreground border-secondary/20' :
-                        'bg-muted text-text-muted border-border-light'
-                      }`}>
-                        {order.order_status.charAt(0).toUpperCase() + order.order_status.slice(1)}
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${(order.status || order.order_status) === 'delivered' ? 'bg-success/10 text-success border-success/20' :
+                          (order.status || order.order_status) === 'processing' ? 'bg-warning/10 text-warning-foreground border-warning/20' :
+                            (order.status || order.order_status) === 'cancelled' || (order.status || order.order_status) === 'failed' ? 'bg-error/10 text-error border-error/20' :
+                              (order.status || order.order_status) === 'returned' ? 'bg-secondary/10 text-secondary-foreground border-secondary/20' :
+                                'bg-muted text-text-muted border-border-light'
+                        }`}>
+                        {(order.status || order.order_status || 'pending').charAt(0).toUpperCase() + (order.status || order.order_status || 'pending').slice(1)}
                       </span>
                     </div>
                     <p className="text-sm text-text-secondary">
-                      Placed on {new Date(order.created_at).toLocaleDateString()} • {order.items?.length || 0} items
+                      Placed on {new Date(order.created_at).toLocaleDateString()} • {order.order_items?.length || 0} items
                     </p>
                   </div>
                   <div className="flex items-center gap-4">
-                    <span className="font-bold text-lg">{formatCurrency(order.total)}</span>
+                    <span className="font-bold text-lg">{formatCurrency(order.total_amount || order.total || 0)}</span>
                     <Link href={`/account/orders/${order.id}`} className="btn-outline py-2 px-4 text-sm rounded-md hover:bg-primary hover:text-white transition-colors">
                       View Details
                     </Link>

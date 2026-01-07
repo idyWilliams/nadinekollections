@@ -68,7 +68,8 @@ export default function OrderDetailsPage() {
           .from('orders')
           .select(`
             *,
-            user:profiles(full_name, email, phone)
+            user:profiles(full_name, email, phone),
+            order_items(*)
           `)
           .eq('id', id)
           .single();
@@ -105,8 +106,23 @@ export default function OrderDetailsPage() {
     );
   }
 
-  // Parse items if they are stored as JSON string, otherwise use as is
-  const orderItems: OrderItem[] = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+  // Map from order_items table with fallback to legacy items JSON
+  const orderItems: OrderItem[] = (order as any).order_items && (order as any).order_items.length > 0
+    ? (order as any).order_items.map((item: any) => ({
+      title: item.product_title || item.title,
+      quantity: item.quantity,
+      price: item.unit_price,
+      image: item.product_image || item.image,
+      variant: item.metadata?.variant_name || item.variant
+    }))
+    : (typeof order.items === 'string' ? JSON.parse(order.items) : (Array.isArray(order.items) ? order.items : [])).map((item: any) => ({
+      title: item.title || item.name || 'Product',
+      quantity: item.quantity || 1,
+      price: item.price || item.unit_price || 0,
+      image: item.image || item.product_image,
+      variant: item.variant || item.variant_name
+    }));
+
   const shippingAddress: ShippingAddress = typeof order.shipping_address === 'string' ? JSON.parse(order.shipping_address) : order.shipping_address;
 
   return (
@@ -200,7 +216,7 @@ export default function OrderDetailsPage() {
                 )}
                 <div className="border-t border-border-light pt-4 flex justify-between font-bold text-lg">
                   <span>Total</span>
-                  <span>{formatCurrency(order.total_amount)}</span>
+                  <span>{formatCurrency(order.total_amount || (order as any).total || 0)}</span>
                 </div>
               </div>
             </div>

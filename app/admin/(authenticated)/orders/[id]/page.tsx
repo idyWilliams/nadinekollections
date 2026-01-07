@@ -78,7 +78,8 @@ export default function AdminOrderDetailsPage() {
                     .from('orders')
                     .select(`
             *,
-            user:profiles(full_name, email, phone)
+            user:profiles(full_name, email, phone),
+            order_items(*)
           `)
                     .eq('id', id)
                     .single();
@@ -143,8 +144,15 @@ export default function AdminOrderDetailsPage() {
         );
     }
 
-    // Parse items if they are stored as JSON string, otherwise use as is
-    const orderItems: OrderItem[] = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+    // Map from order_items table
+    const orderItems: OrderItem[] = (order as any).order_items?.map((item: any) => ({
+        title: item.product_title || item.title,
+        quantity: item.quantity,
+        price: item.unit_price,
+        image: item.product_image || item.image,
+        variant: item.metadata?.variant_name || item.variant
+    })) || [];
+
     const shippingAddress: ShippingAddress = typeof order.shipping_address === 'string' ? JSON.parse(order.shipping_address) : order.shipping_address;
 
     return (
