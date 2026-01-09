@@ -144,14 +144,22 @@ export default function AdminOrderDetailsPage() {
         );
     }
 
-    // Map from order_items table
-    const orderItems: OrderItem[] = (order as any).order_items?.map((item: any) => ({
-        title: item.product_title || item.title,
-        quantity: item.quantity,
-        price: item.unit_price,
-        image: item.product_image || item.image,
-        variant: item.metadata?.variant_name || item.variant
-    })) || [];
+    // Map from order_items table with fallback to legacy items JSON
+    const orderItems: OrderItem[] = (order as any).order_items && (order as any).order_items.length > 0
+        ? (order as any).order_items.map((item: any) => ({
+            title: item.product_title || item.title,
+            quantity: item.quantity,
+            price: item.unit_price,
+            image: item.product_image || item.image,
+            variant: item.metadata?.variant_name || item.variant
+        }))
+        : (typeof (order as any).items === 'string' ? JSON.parse((order as any).items) : (Array.isArray((order as any).items) ? (order as any).items : [])).map((item: any) => ({
+            title: item.title || item.name || 'Product',
+            quantity: item.quantity || 1,
+            price: item.price || item.unit_price || 0,
+            image: item.image || item.product_image,
+            variant: item.variant || item.variant_name
+        }));
 
     const shippingAddress: ShippingAddress = typeof order.shipping_address === 'string' ? JSON.parse(order.shipping_address) : order.shipping_address;
 
@@ -261,7 +269,7 @@ export default function AdminOrderDetailsPage() {
                                 )}
                                 <div className="border-t border-border-light pt-4 flex justify-between font-bold text-lg">
                                     <span>Total</span>
-                                    <span>{formatCurrency(order.total_amount)}</span>
+                                    <span>{formatCurrency(order.total_amount || (order as any).total || 0)}</span>
                                 </div>
                             </div>
                         </div>

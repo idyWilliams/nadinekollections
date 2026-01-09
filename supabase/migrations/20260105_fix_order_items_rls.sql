@@ -1,5 +1,7 @@
--- Add RLS policies for order_items
--- Allow anyone to insert order items (needed for guest checkout)
+-- Enable RLS
+ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
+
+-- Allow anyone to insert (for checkout)
 DROP POLICY IF EXISTS "Enable insert for all users" ON public.order_items;
 CREATE POLICY "Enable insert for all users" ON public.order_items FOR INSERT WITH CHECK (true);
 
