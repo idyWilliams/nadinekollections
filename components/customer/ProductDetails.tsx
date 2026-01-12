@@ -39,19 +39,23 @@ export function ProductDetails({ product }: ProductDetailsProps) {
 
   const variants = product.variants || [];
 
+  // Normalize variants: map inventory_count to stock
+  const normalizedVariants = variants.map((v: any) => ({
+    ...v,
+    stock: v.inventory_count ?? v.stock ?? 0,
+    hex: v.attributes?.hex || v.hex || '#000000'
+  }));
+
   // Effect: Check URL for pre-selected variant
   useEffect(() => {
     const variantId = searchParams.get('variantId');
-    if (variantId && variants.length > 0) {
-      const found = variants.find((v: any) => v.id === variantId);
+    if (variantId && normalizedVariants.length > 0) {
+      const found = normalizedVariants.find((v: any) => v.id === variantId);
       if (found) {
         setSelectedVariant(found);
       }
-    } else if (variants.length > 0 && !selectedVariant) {
-      // Optional: Auto-select first variant if enforcing
-      // setSelectedVariant(variants[0]);
     }
-  }, [searchParams, variants]);
+  }, [searchParams, normalizedVariants]);
 
   // Combined images: Main product images + variant images
   // We want to make sure variant images are accessible.
@@ -74,20 +78,21 @@ export function ProductDetails({ product }: ProductDetailsProps) {
     : (product.images && product.images[selectedImageIndex]) || product.primary_image;
 
   const handleAddToCart = () => {
-    if (variants.length > 0 && !selectedVariant) {
-      toast.error("Please select a valid option (e.g. Color)");
+    if (normalizedVariants.length > 0 && !selectedVariant) {
+      toast.error("Please select a color option");
       return;
     }
 
     addItem({
       id: product.id,
-      title: `${product.title} ${selectedVariant ? `(${selectedVariant.name})` : ''}`,
+      title: `${product.title}${selectedVariant ? ` - ${selectedVariant.name}` : ''}`,
       price: product.sale_price || product.price,
       image: selectedVariant?.image_url || product.primary_image,
       quantity: quantity,
-      // variantId: selectedVariant?.id // Add this to store if needed
+      variantId: selectedVariant?.id,
+      variantName: selectedVariant?.name
     });
-    toast.success(`Added ${quantity} ${product.title} to cart`);
+    toast.success(`Added ${quantity} ${selectedVariant ? selectedVariant.name : product.title} to cart`);
   };
 
   const imagesList = product.images && product.images.length > 0 ? product.images : [product.primary_image];
@@ -183,28 +188,42 @@ export function ProductDetails({ product }: ProductDetailsProps) {
         </div>
 
         {/* Variants Selection */}
-        {variants.length > 0 && (
+        {normalizedVariants.length > 0 && (
           <div className="space-y-3 pt-4 border-t border-border-light">
-            <span className="font-semibold block text-sm">Select Color / Option:</span>
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-sm">Select Color:</span>
+              {selectedVariant && (
+                <span className="text-sm text-text-secondary">{selectedVariant.name}</span>
+              )}
+            </div>
             <div className="flex flex-wrap gap-3">
-              {variants.map((variant: any) => (
+              {normalizedVariants.map((variant: any) => (
                 <button
                   key={variant.id}
                   onClick={() => handleVariantSelect(variant)}
                   className={`
-                                relative px-4 py-2 border rounded-full text-sm font-medium transition-all
-                                ${selectedVariant?.id === variant.id
-                      ? "border-primary bg-primary/5 text-primary ring-1 ring-primary"
-                      : "border-border-light hover:border-primary/50 text-text-primary"}
-                            `}
+                    relative w-10 h-10 rounded-full border-2 shadow-md transition-all hover:scale-110
+                    ${selectedVariant?.id === variant.id
+                      ? "border-primary ring-2 ring-primary ring-offset-2"
+                      : "border-gray-300 hover:border-primary/50"}
+                    ${variant.stock === 0 ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
+                  `}
+                  style={{ backgroundColor: variant.hex }}
+                  title={`${variant.name} (${variant.stock} in stock)`}
+                  aria-label={`Select ${variant.name} color`}
+                  disabled={variant.stock === 0}
                 >
-                  {variant.name}
+                  {variant.stock === 0 && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-full h-0.5 bg-red-500 rotate-45" />
+                    </div>
+                  )}
                 </button>
               ))}
             </div>
             {selectedVariant && (
               <p className="text-xs text-text-secondary">
-                SKU: {selectedVariant.sku || "N/A"} • Stock: {selectedVariant.stock || product.stock}
+                SKU: {selectedVariant.sku || "N/A"} • {selectedVariant.stock} in stock
               </p>
             )}
           </div>
@@ -230,7 +249,11 @@ export function ProductDetails({ product }: ProductDetailsProps) {
               </button>
             </div>
             <span className="text-sm text-text-muted">
-              {product.stock > 0 ? `${product.stock} items in stock` : "Out of stock"}
+              {selectedVariant
+                ? `${selectedVariant.stock} items in stock`
+                : product.stock > 0
+                  ? `${product.stock} items in stock`
+                  : "Out of stock"}
             </span>
           </div>
 

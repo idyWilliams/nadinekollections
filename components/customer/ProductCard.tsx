@@ -45,6 +45,13 @@ export function ProductCard({
   const { addItem: addToWishlist, removeItem, isInWishlist } = useWishlistStore();
   const [selectedVariant, setSelectedVariant] = React.useState<any>(null);
 
+  // Normalize variants: map inventory_count to stock
+  const normalizedVariants = variants.map((v: any) => ({
+    ...v,
+    stock: v.inventory_count ?? v.stock ?? 0,
+    hex: v.attributes?.hex || v.hex || '#000000'
+  }));
+
   // Determine effective image and stock based on selection
   const displayImage = selectedVariant?.image_url || image;
   const displayStock = selectedVariant ? selectedVariant.stock : stock;
@@ -137,13 +144,10 @@ export function ProductCard({
         </div>
 
         {/* Variant/Color Dots */}
-        {variants && variants.length > 0 && (
+        {normalizedVariants && normalizedVariants.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-2">
-            {variants.map((v) => {
-              // Use hex from attributes if available, else derive from name or default
-              const colorHex = v.attributes?.hex || v.attributes?.color || v.name;
-              // Simple heuristic check if it's likely a valid CSS color or hex
-              const bgColor = colorHex.startsWith('#') || ['red', 'blue', 'green', 'black', 'white'].some(c => colorHex.toLowerCase().includes(c)) ? colorHex : '#ccc';
+            {normalizedVariants.map((v) => {
+              const colorHex = v.hex;
 
               return (
                 <button
@@ -153,9 +157,13 @@ export function ProductCard({
                     e.stopPropagation();
                     setSelectedVariant(selectedVariant?.id === v.id ? null : v);
                   }}
-                  className={`w-5 h-5 rounded-full border border-border-light shadow-sm transition-transform hover:scale-110 ${selectedVariant?.id === v.id ? 'ring-2 ring-primary ring-offset-1' : ''}`}
-                  style={{ backgroundColor: bgColor }}
-                  title={`${v.name} (${v.stock} left)`}
+                  className={`w-6 h-6 rounded-full border-2 shadow-sm transition-all hover:scale-110 ${selectedVariant?.id === v.id
+                    ? 'border-primary ring-2 ring-primary ring-offset-1'
+                    : 'border-gray-300 hover:border-primary'
+                    }`}
+                  style={{ backgroundColor: colorHex }}
+                  title={`${v.name} (${v.stock} in stock)`}
+                  aria-label={`Select ${v.name} color`}
                 />
               );
             })}
@@ -172,18 +180,14 @@ export function ProductCard({
           onClick={() => {
             if (isOutOfStock || !isActive) return;
 
-            // Require variant selection if variants exist?
-            // User said "ALLOW USER TO PURCHASE EXACTLY THE COLOR THE WANT INSTEAD OF BUYING EVERYTHING"
-            // If they don't select, we might add the base product (if allowed) or prompt them.
-            // For card, let's allow adding base if no variant selected, BUT if they selected one, add that.
-
             addItem({
               id,
               title: selectedVariant ? `${title} - ${selectedVariant.name}` : title,
               price: salePrice || price,
               image: displayImage,
               quantity: 1,
-              variantId: selectedVariant?.id
+              variantId: selectedVariant?.id,
+              variantName: selectedVariant?.name
             });
             toast.success(`Added ${selectedVariant ? selectedVariant.name : title} to cart`);
           }}

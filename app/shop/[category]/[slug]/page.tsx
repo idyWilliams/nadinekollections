@@ -72,6 +72,7 @@ export default async function ProductPage({
                   isNew={relatedProduct.is_new}
                   stock={relatedProduct.stock}
                   isActive={relatedProduct.is_active}
+                  variants={relatedProduct.variants}
                 />
               ))}
             </div>

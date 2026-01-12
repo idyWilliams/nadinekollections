@@ -244,12 +244,6 @@ export default function CheckoutPage() {
           state: formData.state,
           zip: formData.zip,
         },
-        items: items.map(item => ({
-          product_id: item.id,
-          quantity: item.quantity,
-          price: item.price,
-          variant: item.variantName
-        }))
       };
 
       const { data: order, error: orderError } = await supabase
@@ -261,6 +255,33 @@ export default function CheckoutPage() {
       if (orderError) {
         console.error("Order creation error:", orderError);
         showModal("error", "Order Failed", "Failed to create order. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      // 2. Create Order Items with variant information
+      const orderItemsData = items.map(item => ({
+        order_id: order.id,
+        product_id: item.id,
+        variant_id: item.variantId || null,
+        title: item.title,
+        product_title: item.title,
+        product_image: item.image,
+        quantity: item.quantity,
+        unit_price: item.price,
+        total_price: item.price * item.quantity,
+        metadata: item.variantName ? { variant_name: item.variantName } : {}
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItemsData);
+
+      if (itemsError) {
+        console.error("Order items creation error:", itemsError);
+        // Cleanup: delete the order if items failed
+        await supabase.from('orders').delete().eq('id', order.id);
+        showModal("error", "Order Failed", "Failed to create order items. Please try again.");
         setLoading(false);
         return;
       }

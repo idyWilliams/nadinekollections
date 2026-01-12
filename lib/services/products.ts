@@ -47,7 +47,10 @@ export async function getFeaturedProducts(limit = 8): Promise<Product[]> {
 
     const { data, error } = await supabase
       .from("products")
-      .select("*")
+      .select(`
+        *,
+        variants:product_variants(*)
+      `)
       .eq("is_featured", true)
       .eq("is_active", true)
       .order("created_at", { ascending: false })
@@ -81,7 +84,10 @@ export async function getRelatedProducts(
 
     const { data, error } = await supabase
       .from("products")
-      .select("*")
+      .select(`
+        *,
+        variants:product_variants(*)
+      `)
       .contains("category", categoryArray)
       .eq("is_active", true)
       .neq("id", productId)
