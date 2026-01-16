@@ -51,6 +51,22 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/admin/login', request.url))
     }
 
+    // Check user role for admin access
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    const allowedRoles = ['super_admin', 'admin', 'manager', 'support']
+
+    // If no profile or role not allowed, redirect to home (or unauthorized page)
+    if (!profile || !allowedRoles.includes(profile.role)) {
+      // Create a response that redirects but also could arguably sign them out or show a message
+      // For now, redirect to homepage to keep them out of admin
+      return NextResponse.redirect(new URL('/', request.url))
+    }
+
     // Redirect /admin/dashboard to /admin (canonical dashboard URL)
     if (request.nextUrl.pathname === '/admin/dashboard') {
       return NextResponse.redirect(new URL('/admin', request.url))
