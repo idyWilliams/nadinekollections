@@ -43,21 +43,38 @@ export function ProductCard({
 }: ProductCardProps) {
   const { addItem } = useCartStore();
   const { addItem: addToWishlist, removeItem, isInWishlist } = useWishlistStore();
-  const [selectedVariant, setSelectedVariant] = React.useState<any>(null);
 
-  // Normalize variants: map inventory_count to stock
+  // Normalize variants
   const normalizedVariants = variants.map((v: any) => ({
     ...v,
     stock: v.inventory_count ?? v.stock ?? 0,
-    hex: v.attributes?.hex || v.hex || '#000000'
+    hex: v.attributes?.hex || v.hex || '#000000',
+    color: v.attributes?.color || (v.attributes?.hex ? v.name : null), // Use name as color only if hex exists
+    size: v.attributes?.size || null
   }));
 
-  // Determine effective image and stock based on selection
-  const displayImage = selectedVariant?.image_url || image;
-  const displayStock = selectedVariant ? selectedVariant.stock : stock;
-  const isOutOfStock = displayStock === 0;
+  const uniqueColors = Array.from(new Set(normalizedVariants.filter(v => v.color).map(v => JSON.stringify({ name: v.color, hex: v.hex }))))
+    .map(s => JSON.parse(s as string));
 
-  // Auto-select first variant if available? No, user requested explicit selection
+  const uniqueSizes = Array.from(new Set(normalizedVariants.filter(v => v.size).map(v => v.size)));
+
+  const [selectedColor, setSelectedColor] = React.useState<string | null>(null);
+  const [selectedSize, setSelectedSize] = React.useState<string | null>(null);
+
+  // Derived selected variant
+  const selectedVariant = normalizedVariants.find(v => {
+    const colorMatch = !uniqueColors.length || v.color === selectedColor;
+    const sizeMatch = !uniqueSizes.length || v.size === selectedSize;
+    return colorMatch && sizeMatch;
+  });
+
+  // Determine display stock: if variant found, use its stock.
+  // If not found but partially selected, showing 0 might be wrong...
+  // usage: If we have variants, rely on them. If not, fallback to main stock.
+  const hasVariants = normalizedVariants.length > 0;
+  const displayStock = selectedVariant ? selectedVariant.stock : (hasVariants ? 0 : stock);
+  const displayImage = selectedVariant?.image_url || image;
+  const isOutOfStock = displayStock === 0;
 
   // Calculate discount percentage
   const discountPercentage = salePrice && price > salePrice
@@ -75,16 +92,15 @@ export function ProductCard({
     >
       {/* Badges */}
       <div className="absolute left-3 top-3 md:left-4 md:top-4 z-10 flex flex-col gap-2 p-2">
-        {isOutOfStock && <Badge variant="destructive">Out of Stock</Badge>}
-        {!isActive && displayStock > 0 && <Badge variant="secondary">Unavailable</Badge>}
-        {isNew && displayStock > 0 && isActive && <Badge variant="secondary">New</Badge>}
-        {discountPercentage > 0 && displayStock > 0 && isActive && (
+        {isOutOfStock && hasVariants && (selectedColor || selectedSize) && <Badge variant="destructive">Out of Stock</Badge>}
+        {!hasVariants && stock === 0 && <Badge variant="destructive">Out of Stock</Badge>}
+
+        {!isActive && <Badge variant="secondary">Unavailable</Badge>}
+        {isNew && isActive && <Badge variant="secondary">New</Badge>}
+        {discountPercentage > 0 && isActive && (
           <Badge variant="destructive" className="font-bold">
             -{discountPercentage}%
           </Badge>
-        )}
-        {displayStock > 0 && displayStock < 5 && isActive && (
-          <Badge variant="warning">Only {displayStock} left!</Badge>
         )}
       </div>
 
@@ -115,7 +131,7 @@ export function ProductCard({
             src={displayImage}
             alt={title}
             fill
-            className={`object-cover transition-transform duration-500 group-hover:scale-110 ${isOutOfStock || !isActive ? "opacity-60 grayscale" : ""
+            className={`object-cover transition-transform duration-500 group-hover:scale-110 ${(hasVariants && isOutOfStock && (selectedColor || selectedSize)) || (!hasVariants && stock === 0) ? "opacity-60 grayscale" : ""
               }`}
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           />
@@ -143,30 +159,51 @@ export function ProductCard({
           )}
         </div>
 
-        {/* Variant/Color Dots */}
-        {normalizedVariants && normalizedVariants.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {normalizedVariants.map((v) => {
-              const colorHex = v.hex;
+        {/* Variants Selection */}
+        {hasVariants && (
+          <div className="space-y-2 mt-2">
+            {/* Color Swatches */}
+            {uniqueColors.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {uniqueColors.map((c: any) => (
+                  <button
+                    key={c.name}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setSelectedColor(selectedColor === c.name ? null : c.name);
+                    }}
+                    className={`w-6 h-6 rounded-full border shadow-sm transition-all hover:scale-110 ${selectedColor === c.name
+                        ? 'border-primary ring-2 ring-primary ring-offset-1'
+                        : 'border-transparent ring-1 ring-gray-200 hover:border-primary'
+                      }`}
+                    style={{ backgroundColor: c.hex }}
+                    title={c.name}
+                    aria-label={`Select ${c.name}`}
+                  />
+                ))}
+              </div>
+            )}
 
-              return (
-                <button
-                  key={v.id}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setSelectedVariant(selectedVariant?.id === v.id ? null : v);
-                  }}
-                  className={`w-6 h-6 rounded-full border-2 shadow-sm transition-all hover:scale-110 ${selectedVariant?.id === v.id
-                    ? 'border-primary ring-2 ring-primary ring-offset-1'
-                    : 'border-gray-300 hover:border-primary'
-                    }`}
-                  style={{ backgroundColor: colorHex }}
-                  title={`${v.name} (${v.stock} in stock)`}
-                  aria-label={`Select ${v.name} color`}
-                />
-              );
-            })}
+            {/* Size Badges */}
+            {uniqueSizes.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {uniqueSizes.map((size: any) => (
+                  <button
+                    key={size}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setSelectedSize(selectedSize === size ? null : size);
+                    }}
+                    className={`min-w-[24px] h-6 px-1.5 rounded text-xs font-medium border shadow-sm transition-all ${selectedSize === size
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-white text-text-primary border-gray-200 hover:border-primary'
+                      }`}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -176,9 +213,37 @@ export function ProductCard({
         <Button
           className="w-full gap-2"
           size="sm"
-          disabled={isOutOfStock || !isActive}
-          onClick={() => {
-            if (isOutOfStock || !isActive) return;
+          disabled={hasVariants && !selectedVariant ? false : (isOutOfStock || !isActive)}
+          onClick={(e) => {
+            e.preventDefault(); // Prevent link navigation
+
+            // Enforce logic: If variants exist, need full selection?
+            // Or intelligent default?
+            // Let's enforce selection if multiple options exist.
+            if (hasVariants && !selectedVariant) {
+              // If only one option type exists (e.g. Only Colors), and user picked it, we good.
+              // But selectedVariant handles that logic.
+              // If still null, meaningful toast.
+              if (uniqueColors.length > 0 && !selectedColor) {
+                toast.error("Please select a color");
+                return;
+              }
+              if (uniqueSizes.length > 0 && !selectedSize) {
+                toast.error("Please select a size");
+                return;
+              }
+            }
+
+            if (selectedVariant && selectedVariant.stock === 0) {
+              toast.error("Selected option is out of stock");
+              return;
+            }
+
+            if (!hasVariants && stock === 0) {
+              return;
+            }
+
+            const finalId = selectedVariant ? selectedVariant.id : null;
 
             addItem({
               id,
@@ -186,14 +251,20 @@ export function ProductCard({
               price: salePrice || price,
               image: displayImage,
               quantity: 1,
-              variantId: selectedVariant?.id,
+              variantId: finalId,
               variantName: selectedVariant?.name
             });
             toast.success(`Added ${selectedVariant ? selectedVariant.name : title} to cart`);
           }}
         >
           <ShoppingBag className="h-4 w-4" />
-          {isOutOfStock ? "Out of Stock" : !isActive ? "Unavailable" : "Add to Cart"}
+          {hasVariants && !selectedVariant
+            ? "Select Options"
+            : isOutOfStock
+              ? "Out of Stock"
+              : !isActive
+                ? "Unavailable"
+                : "Add to Cart"}
         </Button>
       </div>
     </motion.div>

@@ -33,66 +33,90 @@ import { useRouter, useSearchParams } from "next/navigation"; // Added imports
 export function ProductDetails({ product }: ProductDetailsProps) {
   const [quantity, setQuantity] = useState(1);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [selectedVariant, setSelectedVariant] = useState<any>(null); // Track selected variant
   const { addItem } = useCartStore();
-  const searchParams = useSearchParams(); // Get search params
+  const searchParams = useSearchParams();
 
   const variants = product.variants || [];
 
-  // Normalize variants: map inventory_count to stock
+  // Normalize variants with attributes
   const normalizedVariants = variants.map((v: any) => ({
     ...v,
     stock: v.inventory_count ?? v.stock ?? 0,
-    hex: v.attributes?.hex || v.hex || '#000000'
+    hex: v.attributes?.hex || v.hex || '#000000',
+    color: v.attributes?.color || (v.attributes?.hex ? v.name : null),
+    size: v.attributes?.size || null
   }));
 
-  // Effect: Check URL for pre-selected variant
+  const uniqueColors = Array.from(new Set(normalizedVariants.filter(v => v.color).map(v => JSON.stringify({ name: v.color, hex: v.hex }))))
+    .map(s => JSON.parse(s as string));
+
+  const uniqueSizes = Array.from(new Set(normalizedVariants.filter(v => v.size).map(v => v.size)));
+
+  // State
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+
+  // Initialize from URL or defaults
   useEffect(() => {
     const variantId = searchParams.get('variantId');
     if (variantId && normalizedVariants.length > 0) {
       const found = normalizedVariants.find((v: any) => v.id === variantId);
       if (found) {
-        setSelectedVariant(found);
+        if (found.color) setSelectedColor(found.color);
+        if (found.size) setSelectedSize(found.size);
       }
     }
-  }, [searchParams, normalizedVariants]);
+  }, [searchParams]);
 
-  // Combined images: Main product images + variant images
-  // We want to make sure variant images are accessible.
-  // Strategy: If a variant is selected, show its image as "selected" main image.
+  // Derived Selection
+  const selectedVariant = normalizedVariants.find(v => {
+    const colorMatch = !uniqueColors.length || v.color === selectedColor;
+    const sizeMatch = !uniqueSizes.length || v.size === selectedSize;
+    return colorMatch && sizeMatch;
+  });
 
-  const handleVariantSelect = (variant: any) => {
-    setSelectedVariant(variant);
+  // Image Logic: If color selected, try to find image for that color
+  const colorImageVariant = selectedColor
+    ? normalizedVariants.find(v => v.color === selectedColor && v.image_url)
+    : null;
 
-    // If variant has an image, find its index or add it to view?
-    // Simpler approach: If variant has image, override the main display image logic
-    // or just switch the selectedImageIndex to wherever that image is.
-    // For now, let's treat variant image as a high priority separate display or find it in list.
-
-    // Improved: If variant has image, force it to show.
-    // We can assume the variants images might not be in the main `images` array unless added.
-  };
-
-  const currentImage = selectedVariant?.image_url
-    ? selectedVariant.image_url
+  const currentImage = colorImageVariant?.image_url
+    ? colorImageVariant.image_url
     : (product.images && product.images[selectedImageIndex]) || product.primary_image;
 
+  // Stock Logic
+  const hasVariants = normalizedVariants.length > 0;
+  const currentStock = selectedVariant
+    ? selectedVariant.stock
+    : (hasVariants ? 0 : product.stock); // If variants exist but not selected, effectively 0 for "Add to Cart" purposes until selected
+  const isOutOfStock = currentStock === 0;
+
   const handleAddToCart = () => {
-    if (normalizedVariants.length > 0 && !selectedVariant) {
-      toast.error("Please select a color option");
-      return;
+    if (hasVariants) {
+      if (uniqueColors.length > 0 && !selectedColor) {
+        toast.error("Please select a color");
+        return;
+      }
+      if (uniqueSizes.length > 0 && !selectedSize) {
+        toast.error("Please select a size");
+        return;
+      }
+      if (!selectedVariant) {
+        toast.error("Selected combination unavailable");
+        return;
+      }
     }
 
     addItem({
       id: product.id,
-      title: `${product.title}${selectedVariant ? ` - ${selectedVariant.name}` : ''}`,
+      title: `${product.title}${selectedVariant ? ` - ${selectedVariant.color} ${selectedVariant.size ? `/ ${selectedVariant.size}` : ''}` : ''}`,
       price: product.sale_price || product.price,
-      image: selectedVariant?.image_url || product.primary_image,
+      image: currentImage,
       quantity: quantity,
       variantId: selectedVariant?.id,
-      variantName: selectedVariant?.name
+      variantName: selectedVariant?.name || `${selectedColor} ${selectedSize}`
     });
-    toast.success(`Added ${quantity} ${selectedVariant ? selectedVariant.name : product.title} to cart`);
+    toast.success(`Added ${quantity} ${product.title} to cart`);
   };
 
   const imagesList = product.images && product.images.length > 0 ? product.images : [product.primary_image];
@@ -127,7 +151,7 @@ export function ProductDetails({ product }: ProductDetailsProps) {
           )}
         </motion.div>
 
-        {/* Thumbnail Gallery - Only show base product images for browsing, variant images show on selection */}
+        {/* Thumbnail Gallery */}
         {imagesList.length > 1 && (
           <div className="grid grid-cols-4 gap-2">
             {imagesList.map((img, idx) => (
@@ -135,11 +159,11 @@ export function ProductDetails({ product }: ProductDetailsProps) {
                 key={idx}
                 onClick={() => {
                   setSelectedImageIndex(idx);
-                  setSelectedVariant(null); // Reset variant selection if they specifically click a timeline thumbnail?
-                  // Or keep variant selected but show this image?
-                  // Let's reset variant to let them browse 'generic' photos.
+                  // Optional: Reset color to let user set image manually?
+                  // Or just assume this overrides color image until color clicked again.
+                  setSelectedColor(null);
                 }}
-                className={`relative aspect-square overflow-hidden rounded-lg border-2 transition-all ${selectedImageIndex === idx && !selectedVariant
+                className={`relative aspect-square overflow-hidden rounded-lg border-2 transition-all ${selectedImageIndex === idx && !selectedColor
                   ? "border-primary ring-2 ring-primary/20"
                   : "border-border-light hover:border-primary/50"
                   }`}
@@ -188,42 +212,67 @@ export function ProductDetails({ product }: ProductDetailsProps) {
         </div>
 
         {/* Variants Selection */}
-        {normalizedVariants.length > 0 && (
-          <div className="space-y-3 pt-4 border-t border-border-light">
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-sm">Select Color:</span>
-              {selectedVariant && (
-                <span className="text-sm text-text-secondary">{selectedVariant.name}</span>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-3">
-              {normalizedVariants.map((variant: any) => (
-                <button
-                  key={variant.id}
-                  onClick={() => handleVariantSelect(variant)}
-                  className={`
-                    relative w-10 h-10 rounded-full border-2 shadow-md transition-all hover:scale-110
-                    ${selectedVariant?.id === variant.id
-                      ? "border-primary ring-2 ring-primary ring-offset-2"
-                      : "border-gray-300 hover:border-primary/50"}
-                    ${variant.stock === 0 ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
-                  `}
-                  style={{ backgroundColor: variant.hex }}
-                  title={`${variant.name} (${variant.stock} in stock)`}
-                  aria-label={`Select ${variant.name} color`}
-                  disabled={variant.stock === 0}
-                >
-                  {variant.stock === 0 && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-full h-0.5 bg-red-500 rotate-45" />
-                    </div>
+        {hasVariants && (
+          <div className="space-y-6 pt-4 border-t border-border-light">
+
+            {/* Colors */}
+            {uniqueColors.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-sm">Select Color:</span>
+                  {selectedColor && (
+                    <span className="text-sm text-text-secondary font-medium">{selectedColor}</span>
                   )}
-                </button>
-              ))}
-            </div>
-            {selectedVariant && (
-              <p className="text-xs text-text-secondary">
-                SKU: {selectedVariant.sku || "N/A"} • {selectedVariant.stock} in stock
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {uniqueColors.map((c: any) => (
+                    <button
+                      key={c.name}
+                      onClick={() => setSelectedColor(selectedColor === c.name ? null : c.name)}
+                      className={`
+                        relative w-10 h-10 rounded-full border-2 shadow-md transition-all hover:scale-110
+                        ${selectedColor === c.name
+                          ? "border-primary ring-2 ring-primary ring-offset-2"
+                          : "border-gray-200 hover:border-primary/50"}
+                      `}
+                      style={{ backgroundColor: c.hex }}
+                      title={c.name}
+                      aria-label={`Select ${c.name} color`}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Sizes */}
+            {uniqueSizes.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-sm">Select Size:</span>
+                  <Link href="/size-guide" className="text-xs text-primary hover:underline">Size Guide</Link>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {uniqueSizes.map((size: any) => (
+                    <button
+                      key={size}
+                      onClick={() => setSelectedSize(selectedSize === size ? null : size)}
+                      className={`
+                        min-w-[3rem] h-10 px-3 rounded-md border font-medium text-sm transition-all
+                        ${selectedSize === size
+                          ? "bg-primary text-white border-primary shadow-sm"
+                          : "bg-white text-text-primary border-gray-200 hover:border-primary/50 hover:bg-gray-50"}
+                      `}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(selectedVariant) && (
+              <p className="text-xs text-text-secondary bg-gray-50 p-2 rounded inline-block">
+                SKU: {selectedVariant.sku || "N/A"} • {selectedVariant.stock} items left
               </p>
             )}
           </div>
@@ -237,6 +286,7 @@ export function ProductDetails({ product }: ProductDetailsProps) {
               <button
                 onClick={() => setQuantity(Math.max(1, quantity - 1))}
                 className="p-2 hover:bg-gray-100 transition-colors"
+                disabled={quantity <= 1}
               >
                 <Minus className="h-4 w-4" />
               </button>
@@ -244,17 +294,11 @@ export function ProductDetails({ product }: ProductDetailsProps) {
               <button
                 onClick={() => setQuantity(quantity + 1)}
                 className="p-2 hover:bg-gray-100 transition-colors"
+                disabled={hasVariants ? !selectedVariant || quantity >= currentStock : quantity >= product.stock}
               >
                 <Plus className="h-4 w-4" />
               </button>
             </div>
-            <span className="text-sm text-text-muted">
-              {selectedVariant
-                ? `${selectedVariant.stock} items in stock`
-                : product.stock > 0
-                  ? `${product.stock} items in stock`
-                  : "Out of stock"}
-            </span>
           </div>
 
           <div className="flex gap-4">
@@ -262,10 +306,10 @@ export function ProductDetails({ product }: ProductDetailsProps) {
               size="lg"
               className="flex-1 gap-2 text-lg h-14"
               onClick={handleAddToCart}
-              disabled={product.stock === 0}
+              disabled={(hasVariants && !selectedVariant) || isOutOfStock}
             >
               <ShoppingBag className="h-5 w-5" />
-              Add to Cart
+              {isOutOfStock ? "Out of Stock" : "Add to Cart"}
             </Button>
             <Button size="lg" variant="outline" className="h-14 w-14 p-0">
               <Heart className="h-5 w-5" />

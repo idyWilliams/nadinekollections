@@ -69,11 +69,13 @@ interface FormData {
 
 interface ProductVariant {
   id?: string;
-  name: string;
+  name: string; // Composite name "Color - Size"
+  color: string; // Explicit color name
+  size?: string; // Explicit size
   sku: string;
   stock: number;
   image_url?: string;
-  hex?: string; // For custom colors like "Sea Green"
+  hex?: string;
 }
 
 export function ProductForm({ initialData, isEditing = false }: ProductFormProps) {
@@ -92,13 +94,15 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [variantInput, setVariantInput] = useState<ProductVariant>({
     name: "",
+    color: "",
+    size: "",
     sku: "",
     stock: 0,
     image_url: "",
     hex: "#000000",
   });
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [hasVariants, setHasVariants] = useState(false); // New Toggle State
+  const [hasVariants, setHasVariants] = useState(false);
 
   // Smart Color Detection
   const colorMap: Record<string, string> = {
@@ -113,16 +117,30 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
     "stone": "#78716C", "brown": "#78350F"
   };
 
-  const handleVariantNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const name = e.target.value;
-    const lowerName = name.toLowerCase().trim();
+  const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const color = e.target.value;
+    const lowerColor = color.toLowerCase().trim();
     let hex = variantInput.hex || "#000000";
 
-    if (colorMap[lowerName]) {
-      hex = colorMap[lowerName];
+    if (colorMap[lowerColor]) {
+      hex = colorMap[lowerColor];
     }
 
-    setVariantInput({ ...variantInput, name, hex });
+    setVariantInput(prev => ({
+      ...prev,
+      color,
+      hex,
+      name: prev.size ? `${color} - ${prev.size}` : color
+    }));
+  };
+
+  const handleSizeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const size = e.target.value;
+    setVariantInput(prev => ({
+      ...prev,
+      size,
+      name: size ? `${prev.color} - ${size}` : prev.color
+    }));
   };
 
   const [formData, setFormData] = useState<FormData>({
@@ -163,7 +181,15 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
 
       // Load variants if they exist in initialData
       if ((initialData as any).variants && (initialData as any).variants.length > 0) {
-        setVariants((initialData as any).variants);
+        const loadedVariants = (initialData as any).variants.map((v: any) => ({
+          ...v,
+          // Ensure we populate the state properties from attributes if available, or fallback to top-level
+          color: v.attributes?.color || v.name,
+          size: v.attributes?.size || "",
+          hex: v.attributes?.hex || v.hex || "#000000",
+          name: v.name // Keep original name
+        }));
+        setVariants(loadedVariants);
         setHasVariants(true);
       }
     }
@@ -353,8 +379,8 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
   };
 
   const handleAddVariant = () => {
-    if (!variantInput.name) {
-      toast.error("Please enter a variant name (e.g., Red)");
+    if (!variantInput.color) {
+      toast.error("Please enter a color name");
       return;
     }
 
@@ -367,6 +393,8 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
 
     setVariantInput({
       name: "",
+      color: "",
+      size: "",
       sku: "",
       stock: 0,
       image_url: "",
@@ -528,7 +556,7 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
             sku: v.sku,
             inventory_count: v.stock, // FIXED: Map stock to inventory_count
             image_url: v.image_url,
-            attributes: { color: v.name, hex: v.hex } // Storing name and HEX for complex colors
+            attributes: { color: v.color, size: v.size, hex: v.hex } // Storing structured attributes
           }));
 
           const { error: variantsError } = await supabase
@@ -826,14 +854,14 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
           {hasVariants && (
             <CardContent className="space-y-6">
               <div className="flex gap-4 items-end flex-wrap">
-                <div className="space-y-2 flex-1 min-w-[200px]">
-                  <Label>Color Name & Value</Label>
+                <div className="space-y-2 flex-1 min-w-[150px]">
+                  <Label>Color</Label>
                   <div className="relative flex items-center gap-2">
                     <div className="relative flex-1">
                       <Input
-                        placeholder="e.g. Nearly Black, Sea Green"
-                        value={variantInput.name}
-                        onChange={(e) => setVariantInput({ ...variantInput, name: e.target.value })}
+                        placeholder="e.g. Red, Navy"
+                        value={variantInput.color}
+                        onChange={handleColorChange}
                         className="pl-9"
                       />
                       <div
@@ -850,6 +878,14 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
                       />
                     </div>
                   </div>
+                </div>
+                <div className="space-y-2 w-32">
+                  <Label>Size</Label>
+                  <Input
+                    placeholder="e.g. XL, 42"
+                    value={variantInput.size}
+                    onChange={handleSizeChange}
+                  />
                 </div>
                 <div className="space-y-2 w-32">
                   <Label>SKU</Label>
@@ -915,7 +951,7 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
                           )}
                         </div>
                         <div>
-                          <p className="font-medium text-sm">{variant.name}</p>
+                          <p className="font-medium text-sm">{variant.color} {variant.size && `- ${variant.size}`}</p>
                           <p className="text-xs text-text-secondary">SKU: {variant.sku || "N/A"} • Stock: {variant.stock}</p>
                         </div>
                       </div>
