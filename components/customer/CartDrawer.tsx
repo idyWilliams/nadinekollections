@@ -1,16 +1,17 @@
 "use client";
 
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Plus, Minus, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/lib/store/cart";
 import { formatCurrency } from "@/lib/utils";
-import Image from "next/image";
+import { OptimizedImage } from "@/components/ui/optimized-image";
 import Link from "next/link";
-import { Drawer } from "vaul";
-import { useMediaQuery } from "@/hooks/use-media-query";
-import { useState } from "react";
 import type { CartItem } from "@/lib/store/cart";
+
+const Drawer = lazy(() => import("vaul").then((m) => ({ default: m.Drawer })));
 
 interface CartContentProps {
   items: CartItem[];
@@ -23,7 +24,6 @@ interface CartContentProps {
 function CartContent({ items, toggleCart, removeItem, updateQuantity, subtotal }: CartContentProps) {
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
       <div className="flex items-center justify-between border-b border-border-light p-4">
         <h2 className="text-lg font-bold flex items-center gap-2">
           <ShoppingBag className="h-5 w-5" />
@@ -31,13 +31,13 @@ function CartContent({ items, toggleCart, removeItem, updateQuantity, subtotal }
         </h2>
         <button
           onClick={toggleCart}
-          className="rounded-full p-2 hover:bg-gray-100"
+          className="rounded-full p-2 hover:bg-gray-100 transition-colors"
+          aria-label="Close cart"
         >
           <X className="h-5 w-5" />
         </button>
       </div>
 
-      {/* Items */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
@@ -49,11 +49,14 @@ function CartContent({ items, toggleCart, removeItem, updateQuantity, subtotal }
           items.map((item) => (
             <div key={`${item.id}-${item.variantId}`} className="flex gap-4">
               <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-gray-100">
-                <Image
+                <OptimizedImage
                   src={item.image}
                   alt={item.title}
                   fill
+                  sizes="80px"
+                  loading="lazy"
                   className="object-cover"
+                  showSkeleton={false}
                 />
               </div>
               <div className="flex flex-1 flex-col justify-between">
@@ -70,22 +73,24 @@ function CartContent({ items, toggleCart, removeItem, updateQuantity, subtotal }
                   <div className="flex items-center gap-2 rounded-md border border-border-light p-1">
                     <button
                       onClick={() => updateQuantity(item.id, item.quantity - 1, item.variantId)}
-                      className="p-1 hover:bg-gray-100 rounded"
+                      className="p-1 hover:bg-gray-100 rounded transition-colors"
                       disabled={item.quantity <= 1}
+                      aria-label="Decrease quantity"
                     >
                       <Minus className="h-3 w-3" />
                     </button>
                     <span className="text-sm w-4 text-center">{item.quantity}</span>
                     <button
                       onClick={() => updateQuantity(item.id, item.quantity + 1, item.variantId)}
-                      className="p-1 hover:bg-gray-100 rounded"
+                      className="p-1 hover:bg-gray-100 rounded transition-colors"
+                      aria-label="Increase quantity"
                     >
                       <Plus className="h-3 w-3" />
                     </button>
                   </div>
                   <button
                     onClick={() => removeItem(item.id, item.variantId)}
-                    className="text-sm text-error hover:underline"
+                    className="text-sm text-error hover:underline transition-colors"
                   >
                     Remove
                   </button>
@@ -96,7 +101,6 @@ function CartContent({ items, toggleCart, removeItem, updateQuantity, subtotal }
         )}
       </div>
 
-      {/* Footer */}
       {items.length > 0 && (
         <div className="border-t border-border-light p-4 space-y-4 bg-surface">
           <div className="flex justify-between text-lg font-bold">
@@ -120,60 +124,93 @@ function CartContent({ items, toggleCart, removeItem, updateQuantity, subtotal }
   );
 }
 
+function DesktopDrawer({
+  isOpen,
+  cartContentProps,
+  toggleCart,
+}: {
+  isOpen: boolean;
+  cartContentProps: CartContentProps;
+  toggleCart: () => void;
+}) {
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={toggleCart}
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+          />
+          <motion.div
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", damping: 28, stiffness: 220 }}
+            style={{ transform: "translateX(0)" }}
+            className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-surface shadow-2xl"
+          >
+            <CartContent {...cartContentProps} />
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function MobileDrawer({
+  isOpen,
+  cartContentProps,
+  toggleCart,
+}: {
+  isOpen: boolean;
+  cartContentProps: CartContentProps;
+  toggleCart: () => void;
+}) {
+  return (
+    <Suspense fallback={null}>
+      <Drawer.Root open={isOpen} onOpenChange={(open) => !open && toggleCart()}>
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 bg-black/40 z-50" />
+          <Drawer.Content className="bg-surface flex flex-col rounded-t-[10px] h-[85vh] mt-24 fixed bottom-0 left-0 right-0 z-50 outline-none">
+            <div className="p-4 bg-surface rounded-t-[10px] flex-1 overflow-hidden">
+              <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-gray-300 mb-8" />
+              <div className="h-full overflow-hidden">
+                <CartContent {...cartContentProps} />
+              </div>
+            </div>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
+    </Suspense>
+  );
+}
+
 export function CartDrawer() {
   const { items, isOpen, toggleCart, removeItem, updateQuantity, subtotal } = useCartStore();
-  const isDesktop = useMediaQuery("(min-width: 768px)");
-  const [mounted, setMounted] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
+  const rawMedia = useMediaQuery("(min-width: 768px)");
 
-  // Use layout effect pattern for mounting
-  if (typeof window !== 'undefined' && !mounted) {
-    setMounted(true);
-  }
-
-  if (!mounted) return null;
+  useEffect(() => {
+    setIsDesktop(rawMedia);
+  }, [rawMedia]);
 
   const cartContentProps = { items, toggleCart, removeItem, updateQuantity, subtotal };
 
-  if (isDesktop) {
-    return (
-      <AnimatePresence>
-        {isOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={toggleCart}
-              className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-surface shadow-2xl"
-            >
-              <CartContent {...cartContentProps} />
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-    );
-  }
-
-  return (
-    <Drawer.Root open={isOpen} onOpenChange={(open) => !open && toggleCart()}>
-      <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 bg-black/40 z-50" />
-        <Drawer.Content className="bg-surface flex flex-col rounded-t-[10px] h-[85vh] mt-24 fixed bottom-0 left-0 right-0 z-50 outline-none">
-          <div className="p-4 bg-surface rounded-t-[10px] flex-1 overflow-hidden">
-            <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-gray-300 mb-8" />
-            <div className="h-full overflow-hidden">
-               <CartContent {...cartContentProps} />
-            </div>
-          </div>
-        </Drawer.Content>
-      </Drawer.Portal>
-    </Drawer.Root>
+  return isDesktop ? (
+    <DesktopDrawer
+      isOpen={isOpen}
+      cartContentProps={cartContentProps}
+      toggleCart={toggleCart}
+    />
+  ) : (
+    <MobileDrawer
+      isOpen={isOpen}
+      cartContentProps={cartContentProps}
+      toggleCart={toggleCart}
+    />
   );
 }

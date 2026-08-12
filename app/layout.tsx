@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { CartDrawer } from "@/components/customer/CartDrawer";
 import "./globals.css";
@@ -87,8 +87,20 @@ const helix = localFont({
       style: "italic",
     },
   ],
+  display: "swap",
+  preload: true,
+  fallback: ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Roboto", "sans-serif"],
   variable: "--font-helix",
 });
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
+  width: "device-width",
+  initialScale: 1,
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://nadinekollections.com'),
@@ -147,8 +159,21 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const supabaseHost = supabaseUrl ? new URL(supabaseUrl).hostname : "";
+
   return (
     <html lang="en">
+      <head>
+        {supabaseHost && (
+          <>
+            <link rel="preconnect" href={`https://${supabaseHost}`} crossOrigin="anonymous" />
+            <link rel="dns-prefetch" href={`https://${supabaseHost}`} />
+          </>
+        )}
+        <link rel="preconnect" href="https://images.unsplash.com" />
+        <link rel="dns-prefetch" href="https://images.unsplash.com" />
+      </head>
       <body
         className={`${helix.variable} antialiased bg-background text-text-primary font-sans`}
       >

@@ -2,21 +2,33 @@ import { HeroBanner } from "@/components/customer/HeroBanner";
 import { ProductCard } from "@/components/customer/ProductCard";
 import { RecentlyViewedSection } from "@/components/customer/RecentlyViewedSection";
 import { Button } from "@/components/ui/button";
+import { OptimizedImage } from "@/components/ui/optimized-image";
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { getFeaturedProducts } from "@/lib/services/products";
+import { getActiveBanners } from "@/lib/services/banners";
+
+export const revalidate = 60;
 
 export default async function Home() {
-  // Fetch featured products from Supabase
-  const featuredProducts = await getFeaturedProducts(8);
+  const [featuredProducts, banners] = await Promise.all([
+    getFeaturedProducts(8),
+    getActiveBanners(),
+  ]);
+
+  const categories = [
+    { name: "Kids", image: "/kidsCategory.jpeg", link: "/shop/kids" },
+    { name: "Women", image: "/banners/womenCategory.png", link: "/shop/women" },
+    { name: "Men", image: "/banners/menCategory.png", link: "/shop/men" },
+    { name: "Accessories", image: "/banners/cat_accessories.png", link: "/shop/accessories" },
+  ];
 
   return (
     <div className="min-h-screen bg-background">
-      <HeroBanner />
+      <HeroBanner initialBanners={banners} />
 
       <main className="container mx-auto px-4 md:px-6 py-12 space-y-12 md:space-y-24">
-        {/* Featured Collection */}
         <section className="py-12 md:py-20 px-4 md:px-6 container mx-auto">
           <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 md:mb-12 gap-4">
             <div>
@@ -63,21 +75,22 @@ export default async function Home() {
           )}
         </section>
 
-        {/* Categories Grid */}
         <section className="py-12 md:py-20 bg-surface">
           <div className="container mx-auto px-4 md:px-6">
             <h2 className="text-3xl font-bold mb-8 md:mb-12 text-center">Shop by Category</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[
-                { name: "Kids", image: "/kidsCategory.jpeg", link: "/shop/kids" },
-                { name: "Women", image: "/banners/womenCategory.png", link: "/shop/women" },
-                { name: "Men", image: "/banners/menCategory.png", link: "/shop/men" },
-                { name: "Accessories", image: "/banners/cat_accessories.png", link: "/shop/accessories" },
-              ].map((cat) => (
-                <Link key={cat.name} href={cat.link} className="group relative h-[300px] md:h-[400px] overflow-hidden rounded-2xl">
-                  <div
-                    className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110"
-                    style={{ backgroundImage: `url(${cat.image})` }}
+              {categories.map((cat) => (
+                <Link
+                  key={cat.name}
+                  href={cat.link}
+                  className="group relative block h-[300px] md:h-[400px] overflow-hidden rounded-2xl"
+                >
+                  <OptimizedImage
+                    src={cat.image}
+                    alt={`${cat.name} category`}
+                    fill
+                    sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                    className="object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                   />
                   <div className="absolute inset-0 bg-black/20 group-hover:bg-black/30 transition-colors" />
                   <div className="absolute bottom-0 left-0 p-6">
@@ -92,7 +105,6 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Recently Viewed or Newsletter */}
         <RecentlyViewedSection
           fallback={
             <section className="py-12 md:py-20 container mx-auto px-4 md:px-6 text-center">

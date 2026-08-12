@@ -64,8 +64,10 @@ export function Header() {
             alt="NadineKollections"
             width={200}
             height={80}
-            priority
-            className="h-36 w-auto" // adjust h-6 / h-8 / h-10 as needed
+            sizes="200px"
+            className="h-12 md:h-14 w-auto"
+            fetchPriority="high"
+            loading="eager"
           />
         </Link>
 

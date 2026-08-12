@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ShoppingBag, Heart, Minus, Plus, Share2, Sparkles } from "lucide-react";
@@ -9,6 +9,8 @@ import { formatCurrency } from "@/lib/utils";
 import { useCartStore } from "@/lib/store/cart";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import { OptimizedImage } from "@/components/ui/optimized-image";
+import { useSearchParams } from "next/navigation";
 
 interface ProductDetailsProps {
   product: {
@@ -25,8 +27,6 @@ interface ProductDetailsProps {
     features?: string[];
   };
 }
-
-import { useRouter, useSearchParams } from "next/navigation"; // Added imports
 
 // ...
 
@@ -134,9 +134,10 @@ export function ProductDetails({ product }: ProductDetailsProps) {
           key={currentImage} // Key change triggers animation
           initial={{ opacity: 0.5 }}
           animate={{ opacity: 1 }}
+          transition={{ duration: 0.25 }}
           className="relative aspect-square overflow-hidden rounded-2xl bg-gray-100 border border-border-light"
         >
-          <Image
+          <OptimizedImage
             src={currentImage}
             alt={product.title}
             fill
@@ -145,7 +146,7 @@ export function ProductDetails({ product }: ProductDetailsProps) {
             priority
           />
           {discountPercentage > 0 && (
-            <Badge variant="destructive" className="absolute top-4 left-4 text-lg font-bold px-3 py-1">
+            <Badge variant="destructive" className="absolute top-4 left-4 text-lg font-bold px-3 py-1 z-10">
               -{discountPercentage}% OFF
             </Badge>
           )}
@@ -159,8 +160,6 @@ export function ProductDetails({ product }: ProductDetailsProps) {
                 key={idx}
                 onClick={() => {
                   setSelectedImageIndex(idx);
-                  // Optional: Reset color to let user set image manually?
-                  // Or just assume this overrides color image until color clicked again.
                   setSelectedColor(null);
                 }}
                 className={`relative aspect-square overflow-hidden rounded-lg border-2 transition-all ${selectedImageIndex === idx && !selectedColor
@@ -168,12 +167,14 @@ export function ProductDetails({ product }: ProductDetailsProps) {
                   : "border-border-light hover:border-primary/50"
                   }`}
               >
-                <Image
+                <OptimizedImage
                   src={img}
                   alt={`${product.title} view ${idx + 1}`}
                   fill
                   className="object-cover"
-                  sizes="100px"
+                  sizes="120px"
+                  loading="lazy"
+                  showSkeleton={false}
                 />
               </button>
             ))}

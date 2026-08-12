@@ -4,8 +4,9 @@ import { useState } from "react";
 import Image, { ImageProps } from "next/image";
 import { cn } from "@/lib/utils";
 
-interface OptimizedImageProps extends Omit<ImageProps, "onLoad"> {
+interface OptimizedImageProps extends Omit<ImageProps, "onLoad" | "placeholder"> {
   containerClassName?: string;
+  showSkeleton?: boolean;
 }
 
 export function OptimizedImage({
@@ -13,25 +14,53 @@ export function OptimizedImage({
   containerClassName,
   alt,
   src,
+  priority,
+  loading,
+  quality,
+  sizes,
+  fill,
+  style,
+  showSkeleton = true,
   ...props
 }: OptimizedImageProps) {
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   if (!src) {
-    return <div className={cn("relative overflow-hidden bg-muted/20 h-full w-full", containerClassName)} />;
+    return (
+      <div
+        className={cn(
+          "relative overflow-hidden bg-muted/20 h-full w-full",
+          showSkeleton && "animate-pulse",
+          containerClassName
+        )}
+      />
+    );
   }
 
+  const effectiveLoading = priority ? "eager" : loading ?? "lazy";
+  const effectiveQuality = quality ?? 75;
+
   return (
-    <div className={cn("relative overflow-hidden bg-muted/20 h-full w-full", containerClassName)}>
+    <div
+      className={cn("relative overflow-hidden bg-muted/20 h-full w-full", containerClassName)}
+      style={style}
+    >
       <Image
         src={src}
-        alt={alt}
+        alt={alt || ""}
+        priority={priority}
+        loading={effectiveLoading}
+        quality={effectiveQuality}
+        sizes={sizes}
+        fill={fill}
+        fetchPriority={priority ? "high" : undefined}
+        decoding={priority ? "sync" : "async"}
         className={cn(
-          "duration-700 ease-in-out",
-          isLoading ? "scale-110 blur-xl grayscale" : "scale-100 blur-0 grayscale-0",
+          "transition-opacity duration-300 ease-out",
+          isLoaded ? "opacity-100" : showSkeleton ? "opacity-0" : "opacity-100",
           className
         )}
-        onLoad={() => setIsLoading(false)}
+        onLoad={() => setIsLoaded(true)}
         {...props}
       />
     </div>
