@@ -4,14 +4,148 @@ import Link from "next/link";
 import Image from "next/image";
 import { ShoppingBag, Search, User as UserIcon, Menu, LogOut, Heart, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, Suspense, lazy } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useCartStore } from "@/lib/store/cart";
 import { createClient } from "@/lib/supabase/client";
 import { User } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
-import { NotificationCenter } from "@/components/shared/NotificationCenter";
-import { SearchInput } from "@/components/shared/SearchInput";
+import dynamic from "next/dynamic";
+
+const NotificationCenter = dynamic(
+  () => import("@/components/shared/NotificationCenter").then((m) => m.NotificationCenter),
+  { ssr: false, loading: () => <div className="w-10 h-10" /> }
+);
+
+const SearchInput = dynamic(
+  () => import("@/components/shared/SearchInput").then((m) => m.SearchInput),
+  { ssr: false, loading: () => <div className="h-10 w-full bg-surface rounded-md" /> }
+);
+
+function CartCountBadge({ count }: { count: number }) {
+  return count > 0 ? (
+    <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-gold text-[10px] font-bold text-white shadow-sm">
+      {count > 99 ? "99+" : count}
+    </span>
+  ) : null;
+}
+
+interface HeaderActionsProps {
+  user: User | null;
+  itemCount: number;
+  onLogout: () => Promise<void>;
+  onToggleCart: () => void;
+}
+
+function HeaderActions({ user, itemCount, onLogout, onToggleCart }: HeaderActionsProps) {
+  return (
+    <div className="flex items-center gap-2 md:gap-4">
+      <div className="hidden md:block w-64">
+        <Suspense fallback={<div className="h-10 w-full bg-surface rounded-md animate-pulse" />}>
+          <SearchInput className="w-full" />
+        </Suspense>
+      </div>
+
+      {user ? (
+        <div className="flex items-center gap-1 md:gap-2">
+          <Suspense fallback={<div className="w-10 h-10" />}>
+            <NotificationCenter />
+          </Suspense>
+          <Link href="/account">
+            <Button variant="ghost" size="icon" className="hidden md:flex" title="Account">
+              <UserIcon className="h-5 w-5" />
+            </Button>
+          </Link>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hidden md:flex"
+            onClick={onLogout}
+            title="Sign Out"
+          >
+            <LogOut className="h-5 w-5" />
+          </Button>
+        </div>
+      ) : (
+        <Link href="/login">
+          <Button variant="ghost" size="sm" className="hidden md:flex font-medium">
+            Sign In
+          </Button>
+        </Link>
+      )}
+
+      <Link href="/wishlist">
+        <Button variant="ghost" size="icon" className="relative" title="Wishlist">
+          <Heart className="h-5 w-5" />
+        </Button>
+      </Link>
+
+      <Button variant="primary" size="icon" className="relative" onClick={onToggleCart} aria-label="Open cart">
+        <ShoppingBag className="h-5 w-5" />
+        <CartCountBadge count={itemCount} />
+      </Button>
+    </div>
+  );
+}
+
+function AuthActionsFallback({ itemCount, onToggleCart }: { itemCount: number; onToggleCart: () => void }) {
+  return (
+    <div className="flex items-center gap-2 md:gap-4">
+      <div className="hidden md:block w-64">
+        <div className="h-10 w-full bg-surface rounded-md" />
+      </div>
+      <Link href="/login">
+        <Button variant="ghost" size="sm" className="hidden md:flex font-medium">
+          Sign In
+        </Button>
+      </Link>
+      <Link href="/wishlist">
+        <Button variant="ghost" size="icon" className="relative" title="Wishlist">
+          <Heart className="h-5 w-5" />
+        </Button>
+      </Link>
+      <Button variant="primary" size="icon" className="relative" onClick={onToggleCart} aria-label="Open cart">
+        <ShoppingBag className="h-5 w-5" />
+        <CartCountBadge count={itemCount} />
+      </Button>
+    </div>
+  );
+}
+
+function MobileActions({
+  isSearchOpen,
+  setIsSearchOpen,
+  user,
+  onLogout,
+}: {
+  isSearchOpen: boolean;
+  setIsSearchOpen: (v: boolean) => void;
+  user: User | null;
+  onLogout: () => Promise<void>;
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        className="md:hidden p-2 -ml-2 hover:bg-muted/20 rounded-full transition-colors"
+        onClick={() => setIsSearchOpen(!isSearchOpen)}
+        aria-label="Toggle Search"
+      >
+        <Search className="h-5 w-5 text-text-primary" />
+      </button>
+      {user && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden md:hidden"
+          onClick={onLogout}
+          title="Sign Out"
+        >
+          <LogOut className="h-4 w-4" />
+        </Button>
+      )}
+    </div>
+  );
+}
 
 export function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -19,25 +153,36 @@ export function Header() {
   const { toggleCart, items } = useCartStore();
   const itemCount = items.reduce((acc, item) => acc + item.quantity, 0);
   const [user, setUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const supabase = createClient();
   const router = useRouter();
 
   useEffect(() => {
-    const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUser(user);
+    let subscribed = true;
+    let channelSub: { unsubscribe: () => void } | null = null;
+
+    const init = async () => {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (subscribed) {
+        setUser(currentUser);
+        setAuthReady(true);
+      }
+
+      const { data: subscriptionInfo } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (subscribed) {
+          setUser(session?.user ?? null);
+          setAuthReady(true);
+        }
+      });
+      channelSub = subscriptionInfo.subscription;
     };
-    getUser();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
+    void init();
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscribed = false;
+      if (channelSub) channelSub.unsubscribe();
+    };
   }, [supabase.auth]);
 
   const handleLogout = async () => {
@@ -48,32 +193,30 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border-light bg-surface/80 backdrop-blur-md">
       <div className="container mx-auto flex h-20 items-center justify-between px-4 md:px-6">
-        {/* Mobile Menu Button */}
-        <button
-          className="md:hidden p-2 -ml-2 hover:bg-muted/20 rounded-full transition-colors"
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          aria-label="Open Menu"
-        >
-          <Menu className="h-6 w-6 text-text-primary" />
-        </button>
+        <div className="flex items-center gap-2 md:gap-4 flex-1 md:flex-none">
+          <button
+            className="md:hidden p-2 -ml-2 hover:bg-muted/20 rounded-full transition-colors"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label="Open Menu"
+          >
+            <Menu className="h-6 w-6 text-text-primary" />
+          </button>
 
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-2">
-          <Image
-            src="/logo.png"
-            alt="NadineKollections"
-            width={200}
-            height={80}
-            sizes="200px"
-            className="h-12 md:h-14 w-auto"
-            fetchPriority="high"
-            loading="eager"
-          />
-        </Link>
+          <Link href="/" className="flex items-center gap-2 shrink-0">
+            <Image
+              src="/logo.png"
+              alt="NadineKollections"
+              width={200}
+              height={80}
+              sizes="200px"
+              className="h-12 md:h-14 w-auto"
+              fetchPriority="high"
+              loading="eager"
+            />
+          </Link>
+        </div>
 
-
-        {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-8">
+        <nav className="hidden md:flex items-center gap-6 lg:gap-8 flex-1 justify-center">
           <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">
             Home
           </Link>
@@ -86,7 +229,6 @@ export function Header() {
           <Link href="/about" className="text-sm font-medium hover:text-primary transition-colors">
             About
           </Link>
-          {/* <div className="h-4 w-px bg-border-light mx-2" /> */}
           <Link href="/studio" className="group flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-primary-foreground text-sm font-medium shadow-glow hover:shadow-lg hover:scale-105 transition-all duration-300">
             <Sparkles className="h-3.5 w-3.5 transition-transform group-hover:rotate-12" />
             <span>Virtual Studio</span>
@@ -105,65 +247,26 @@ export function Header() {
           </Link>
         </nav>
 
-        {/* Actions */}
-        <div className="flex items-center gap-4">
-          {/* Desktop Search */}
-          <div className="hidden md:block w-64">
-            <SearchInput className="w-full" />
-          </div>
-
-          {/* Mobile Search Toggle */}
-          <button
-            className="md:hidden p-2 hover:bg-muted/20 rounded-full transition-colors"
-            onClick={() => setIsSearchOpen(!isSearchOpen)}
-            aria-label="Toggle Search"
-          >
-            <Search className="h-5 w-5 text-text-primary" />
-          </button>
-          {user ? (
-            <div className="flex items-center gap-2">
-              <NotificationCenter />
-              <Link href="/account">
-                <Button variant="ghost" size="icon" className="hidden md:flex" title="Account">
-                  <UserIcon className="h-5 w-5" />
-                </Button>
-              </Link>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="hidden md:flex"
-                onClick={handleLogout}
-                title="Sign Out"
-              >
-                <LogOut className="h-5 w-5" />
-              </Button>
-            </div>
+        <div className="flex-1 md:flex-none flex justify-end">
+          {authReady ? (
+            <HeaderActions
+              user={user}
+              itemCount={itemCount}
+              onLogout={handleLogout}
+              onToggleCart={toggleCart}
+            />
           ) : (
-            <Link href="/login">
-              <Button variant="ghost" size="sm" className="hidden md:flex font-medium">
-                Sign In
-              </Button>
-            </Link>
+            <AuthActionsFallback itemCount={itemCount} onToggleCart={toggleCart} />
           )}
-
-          <Link href="/wishlist">
-            <Button variant="ghost" size="icon" className="relative" title="Wishlist">
-              <Heart className="h-5 w-5" />
-            </Button>
-          </Link>
-
-          <Button variant="primary" size="icon" className="relative" onClick={toggleCart}>
-            <ShoppingBag className="h-5 w-5" />
-            {itemCount > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-gold text-[10px] font-bold text-white shadow-sm">
-                {itemCount}
-              </span>
-            )}
-          </Button>
+          <MobileActions
+            isSearchOpen={isSearchOpen}
+            setIsSearchOpen={setIsSearchOpen}
+            user={user}
+            onLogout={handleLogout}
+          />
         </div>
       </div>
 
-      {/* Mobile Search Overlay */}
       <AnimatePresence>
         {isSearchOpen && (
           <motion.div
@@ -172,16 +275,17 @@ export function Header() {
             exit={{ height: 0, opacity: 0 }}
             className="md:hidden border-t border-border-light bg-surface px-4 py-4 absolute top-full left-0 w-full shadow-md"
           >
-            <SearchInput
-              className="w-full"
-              autoFocus
-              onSearch={() => setIsSearchOpen(false)}
-            />
+            <Suspense fallback={<div className="h-10 w-full bg-surface rounded-md animate-pulse" />}>
+              <SearchInput
+                className="w-full"
+                autoFocus
+                onSearch={() => setIsSearchOpen(false)}
+              />
+            </Suspense>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Mobile Menu */}
       <AnimatePresence>
         {isMobileMenuOpen && (
           <motion.div
@@ -191,10 +295,12 @@ export function Header() {
             className="md:hidden border-t border-border-light bg-surface px-4 py-4"
           >
             <nav className="flex flex-col gap-4">
-              <SearchInput
-                className="w-full"
-                onSearch={() => setIsMobileMenuOpen(false)}
-              />
+              <Suspense fallback={<div className="h-10 w-full bg-surface rounded-md animate-pulse" />}>
+                <SearchInput
+                  className="w-full"
+                  onSearch={() => setIsMobileMenuOpen(false)}
+                />
+              </Suspense>
               <Link
                 href="/shop/kids"
                 className="text-sm font-medium text-text-secondary"
@@ -223,7 +329,7 @@ export function Header() {
               >
                 Accessories
               </Link>
-              {user ? (
+              {authReady && user ? (
                 <>
                   <Link
                     href="/account"
@@ -234,7 +340,7 @@ export function Header() {
                   </Link>
                   <button
                     onClick={() => {
-                      handleLogout();
+                      void handleLogout();
                       setIsMobileMenuOpen(false);
                     }}
                     className="text-sm font-medium text-text-secondary text-left"

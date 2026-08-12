@@ -7,7 +7,6 @@ import { useWishlistStore } from "@/lib/store/wishlist";
 
 import { OptimizedImage } from "@/components/ui/optimized-image";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { Heart, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +24,7 @@ interface ProductCardProps {
   isSale?: boolean;
   stock?: number;
   isActive?: boolean;
-  variants?: any[]; // Using any[] temporarily to match fetched data structure
+  variants?: any[];
 }
 
 export function ProductCard({
@@ -44,12 +43,11 @@ export function ProductCard({
   const { addItem } = useCartStore();
   const { addItem: addToWishlist, removeItem, isInWishlist } = useWishlistStore();
 
-  // Normalize variants
   const normalizedVariants = variants.map((v: any) => ({
     ...v,
     stock: v.inventory_count ?? v.stock ?? 0,
     hex: v.attributes?.hex || v.hex || '#000000',
-    color: v.attributes?.color || (v.attributes?.hex ? v.name : null), // Use name as color only if hex exists
+    color: v.attributes?.color || (v.attributes?.hex ? v.name : null),
     size: v.attributes?.size || null
   }));
 
@@ -61,36 +59,28 @@ export function ProductCard({
   const [selectedColor, setSelectedColor] = React.useState<string | null>(null);
   const [selectedSize, setSelectedSize] = React.useState<string | null>(null);
 
-  // Derived selected variant
   const selectedVariant = normalizedVariants.find(v => {
     const colorMatch = !uniqueColors.length || v.color === selectedColor;
     const sizeMatch = !uniqueSizes.length || v.size === selectedSize;
     return colorMatch && sizeMatch;
   });
 
-  // Determine display stock: if variant found, use its stock.
-  // If not found but partially selected, showing 0 might be wrong...
-  // usage: If we have variants, rely on them. If not, fallback to main stock.
   const hasVariants = normalizedVariants.length > 0;
   const displayStock = selectedVariant ? selectedVariant.stock : (hasVariants ? 0 : stock);
   const displayImage = selectedVariant?.image_url || image;
   const isOutOfStock = displayStock === 0;
 
-  // Calculate discount percentage
   const discountPercentage = salePrice && price > salePrice
     ? Math.round(((price - salePrice) / price) * 100)
     : 0;
 
+  const cardRef = React.useRef<HTMLDivElement>(null);
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      whileHover={{ y: -5 }}
-      transition={{ duration: 0.3 }}
-      className="group relative rounded-2xl bg-surface p-3 md:p-4 shadow-card hover:shadow-hover"
+    <div
+      ref={cardRef}
+      className="group relative rounded-2xl bg-surface p-3 md:p-4 shadow-card hover:shadow-hover transition-[transform,box-shadow] duration-300 ease-out will-change-transform hover:-translate-y-1"
     >
-      {/* Badges */}
       <div className="absolute left-3 top-3 md:left-4 md:top-4 z-10 flex flex-col gap-2 p-2">
         {isOutOfStock && hasVariants && (selectedColor || selectedSize) && <Badge variant="destructive">Out of Stock</Badge>}
         {!hasVariants && stock === 0 && <Badge variant="destructive">Out of Stock</Badge>}
@@ -104,7 +94,6 @@ export function ProductCard({
         )}
       </div>
 
-      {/* Wishlist Button */}
       <button
         onClick={(e) => {
           e.preventDefault();
@@ -120,31 +109,30 @@ export function ProductCard({
           ? "bg-primary text-white hover:bg-primary/90 "
           : "bg-white/80 text-text-secondary hover:bg-white hover:text-error"
           }`}
+        aria-label={isInWishlist(id) ? "Remove from wishlist" : "Add to wishlist"}
       >
         <Heart className={`h-4 w-4 ${isInWishlist(id) ? "fill-current" : ""}`} />
       </button>
 
-      {/* Image */}
       <Link href={`/shop/${category.toLowerCase()}/${slug}${selectedVariant ? `?variantId=${selectedVariant.id}` : ''}`}>
         <div className="relative mb-4 aspect-square overflow-hidden rounded-xl bg-gray-100">
           <OptimizedImage
             src={displayImage}
             alt={title}
             fill
-            className={`object-cover transition-transform duration-500 group-hover:scale-110 ${(hasVariants && isOutOfStock && (selectedColor || selectedSize)) || (!hasVariants && stock === 0) ? "opacity-60 grayscale" : ""
+            className={`object-cover transition-transform duration-500 ease-out group-hover:scale-105 ${(hasVariants && isOutOfStock && (selectedColor || selectedSize)) || (!hasVariants && stock === 0) ? "opacity-60 grayscale" : ""
               }`}
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
           />
         </div>
       </Link>
 
-      {/* Content */}
       <div className="space-y-2">
         <p className="text-xs text-text-muted uppercase tracking-wider">
           {category}
         </p>
         <Link href={`/shop/${category.toLowerCase()}/${slug}${selectedVariant ? `?variantId=${selectedVariant.id}` : ''}`}>
-          <h3 className="line-clamp-2 text-base font-semibold text-text-primary group-hover:text-primary">
+          <h3 className="line-clamp-2 text-base font-semibold text-text-primary group-hover:text-primary transition-colors">
             {title}
           </h3>
         </Link>
@@ -159,10 +147,8 @@ export function ProductCard({
           )}
         </div>
 
-        {/* Variants Selection */}
         {hasVariants && (
           <div className="space-y-2 mt-2">
-            {/* Color Swatches */}
             {uniqueColors.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {uniqueColors.map((c: any) => (
@@ -184,7 +170,6 @@ export function ProductCard({
               </div>
             )}
 
-            {/* Size Badges */}
             {uniqueSizes.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {uniqueSizes.map((size: any) => (
@@ -208,22 +193,15 @@ export function ProductCard({
         )}
       </div>
 
-      {/* Quick Add Button */}
       <div className="mt-4">
         <Button
           className="w-full gap-2"
           size="sm"
           disabled={hasVariants && !selectedVariant ? false : (isOutOfStock || !isActive)}
           onClick={(e) => {
-            e.preventDefault(); // Prevent link navigation
+            e.preventDefault();
 
-            // Enforce logic: If variants exist, need full selection?
-            // Or intelligent default?
-            // Let's enforce selection if multiple options exist.
             if (hasVariants && !selectedVariant) {
-              // If only one option type exists (e.g. Only Colors), and user picked it, we good.
-              // But selectedVariant handles that logic.
-              // If still null, meaningful toast.
               if (uniqueColors.length > 0 && !selectedColor) {
                 toast.error("Please select a color");
                 return;
@@ -267,6 +245,6 @@ export function ProductCard({
                 : "Add to Cart"}
         </Button>
       </div>
-    </motion.div>
+    </div>
   );
 }

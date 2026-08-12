@@ -3,18 +3,44 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
     @apply bg-background text-text-primary;
-    background-color: #F5F3F0; /* Warmer, slightly darker cream */
+    background-color: #F5F3F0;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overscroll-behavior-y: none;
   }
 
   h1, h2, h3, h4, h5, h6 {
     @apply tracking-tight;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
   }
 
   * {
     border-color: hsl(var(--border));
   }
+
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  img, picture, video, canvas, svg {
+    display: block;
+    max-width: 100%;
+    content-visibility: auto;
+  }
+
   :root {
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
@@ -84,13 +110,23 @@
     @apply border-2 border-primary text-primary hover:bg-primary/5 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
-  .input-field {
-  }
   .card-hover {
-    @apply transition-all duration-300 hover:shadow-hover hover:-translate-y-1;
+    @apply transition-[transform,box-shadow] duration-300 ease-out will-change-transform hover:shadow-hover hover:-translate-y-1;
+  }
+
+  header,
+  footer,
+  [role="banner"],
+  [role="contentinfo"] {
+    contain: layout paint;
   }
 }
 
-
-
+@layer utilities {
+  .animate-composited {
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+  }
+}
 

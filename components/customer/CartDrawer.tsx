@@ -1,7 +1,7 @@
 "use client";
 
 import { useMediaQuery } from "@/hooks/use-media-query";
-import { useState, useEffect, lazy, Suspense } from "react";
+import { Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Plus, Minus, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,9 +9,8 @@ import { useCartStore } from "@/lib/store/cart";
 import { formatCurrency } from "@/lib/utils";
 import { OptimizedImage } from "@/components/ui/optimized-image";
 import Link from "next/link";
+import { Drawer } from "vaul";
 import type { CartItem } from "@/lib/store/cart";
-
-const Drawer = lazy(() => import("vaul").then((m) => ({ default: m.Drawer })));
 
 interface CartContentProps {
   items: CartItem[];
@@ -191,12 +190,7 @@ function MobileDrawer({
 
 export function CartDrawer() {
   const { items, isOpen, toggleCart, removeItem, updateQuantity, subtotal } = useCartStore();
-  const [isDesktop, setIsDesktop] = useState(false);
-  const rawMedia = useMediaQuery("(min-width: 768px)");
-
-  useEffect(() => {
-    setIsDesktop(rawMedia);
-  }, [rawMedia]);
+  const isDesktop = useMediaQuery("(min-width: 768px)", true);
 
   const cartContentProps = { items, toggleCart, removeItem, updateQuantity, subtotal };
 
