@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createPublicClient } from "@/lib/supabase/server";
 
 export interface StockAvailability {
   available: boolean;
@@ -8,14 +8,19 @@ export interface StockAvailability {
 }
 
 /**
- * Check if a product has sufficient stock for purchase
+ * Check if a product has sufficient stock for purchase.
+ *
+ * Public product catalog reads use `createPublicClient` (no cookies,
+ * static-generation-safe). The admin-stock-mutators at the bottom of this
+ * file correctly use `createClient` (cookie-bound, authenticated as an
+ * admin or the user behind an API route with service-role fallback).
  */
 export async function checkStockAvailability(
   productId: string,
   requestedQuantity: number
 ): Promise<StockAvailability> {
   try {
-    const supabase = await createClient();
+    const supabase = createPublicClient();
 
     const { data: product, error } = await supabase
       .from("products")

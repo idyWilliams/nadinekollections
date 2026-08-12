@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/server";
 
 export interface Banner {
   id: string;
@@ -13,11 +13,19 @@ export interface Banner {
 }
 
 /**
- * Get active banners ordered by display_order
+ * Get active banners ordered by display_order.
+ *
+ * Uses `createPublicClient` (ANON key, no cookies) — this function is
+ * static-generation-safe.  The homepage can prerender because no
+ * request-scoped primitive (cookies, headers) is touched here.
+ *
+ * Permissions rely entirely on RLS:
+ *   "Public can view active banner ads" ON banner_ads FOR SELECT
+ *   USING (is_active = true).
  */
 export async function getActiveBanners(): Promise<Banner[]> {
   try {
-    const supabase = await createClient();
+    const supabase = createPublicClient();
 
     const { data, error } = await supabase
       .from("banner_ads")

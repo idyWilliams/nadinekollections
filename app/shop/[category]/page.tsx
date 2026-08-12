@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/server";
 import { ProductCard } from "@/components/customer/ProductCard";
 
 import { Pagination } from "@/components/shared/Pagination";
@@ -35,7 +35,11 @@ export default async function CategoryPage({
   let error = null;
 
   try {
-    const supabase = await createClient();
+    // Public catalog listing: no user session needed, so we use the
+    // cookie-free createPublicClient.  This keeps the page static-
+    // generation-friendly (Next.js can prerender "all" /shop/all) and
+    // avoids DYNAMIC_SERVER_USAGE errors for purely-static routes.
+    const supabase = createPublicClient();
 
     // Fetch products for this category
     let query = supabase
