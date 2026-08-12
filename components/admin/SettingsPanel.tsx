@@ -4,11 +4,11 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { createClient } from "@/lib/supabase/client";
-import { UserPlus, Lock, Loader2, ShieldCheck, Mail } from "lucide-react";
+import { UserPlus, Lock, Loader2, Mail } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -32,11 +32,24 @@ interface AdminProfile {
 
 type PaymentProvider = 'paystack' | 'flutterwave' | 'monnify' | 'remita';
 
+interface AdminInvitation {
+  id: string;
+  email: string;
+  invited_by?: string | null;
+  status: 'pending' | 'accepted' | 'expired' | 'revoked';
+  token: string;
+  expires_at?: string;
+  accepted_at?: string | null;
+  resent_count: number;
+  last_sent_at?: string | null;
+  created_at: string;
+}
+
 export function SettingsPanel() {
   const [loading, setLoading] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [isInviteOpen, setIsInviteOpen] = useState(false);
-  const [invitations, setInvitations] = useState<any[]>([]);
+  const [invitations, setInvitations] = useState<AdminInvitation[]>([]);
   const [admins, setAdmins] = useState<AdminProfile[]>([]);
 
   // Settings State
@@ -159,6 +172,51 @@ export function SettingsPanel() {
       fetchAdmins();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to invite admin";
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendInvite = async (email: string) => {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/admin/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to resend invitation");
+
+      toast.success(data.message || "Invitation re-sent successfully");
+      fetchAdmins();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to resend invitation";
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRevokeInvite = async (email: string) => {
+    if (!confirm(`Are you sure you want to revoke the invitation for ${email}?`)) return;
+    setLoading(true);
+    try {
+      const response = await fetch("/api/admin/invite/revoke", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to revoke invitation");
+
+      toast.success(data.message || "Invitation revoked successfully");
+      fetchAdmins();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to revoke invitation";
       toast.error(message);
     } finally {
       setLoading(false);
@@ -332,11 +390,35 @@ export function SettingsPanel() {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={cn(
-                    "text-xs px-2.5 py-0.5 rounded-full font-medium",
-                    invite.status === 'accepted' ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                    "text-xs px-2.5 py-0.5 rounded-full font-medium capitalize",
+                    invite.status === 'accepted' && "bg-green-100 text-green-700",
+                    invite.status === 'pending' && "bg-yellow-100 text-yellow-700",
+                    invite.status === 'revoked' && "bg-red-100 text-red-700",
+                    invite.status === 'expired' && "bg-gray-100 text-gray-700"
                   )}>
-                    {invite.status === 'accepted' ? "Accepted" : "Pending"}
+                    {invite.status}
                   </span>
+                  {invite.status === 'pending' && (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={loading}
+                        onClick={() => handleResendInvite(invite.email)}
+                      >
+                        Resend
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={loading}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => handleRevokeInvite(invite.email)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             </Card>
