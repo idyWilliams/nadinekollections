@@ -150,59 +150,195 @@ export async function POST(request: Request) {
   }
 
   // =====================================================================
-  // BRANCH A: User exists -> promote to admin
+  // BRANCH A: Existing profile — dispatch to one of 4 sub-scenarios
+  //
+  //   A1  role != "admin"                            -> PROMOTE (upgrade + send no email)
+  //   A2  role == "admin" + invitation.status IN     -> RESEND INVITE (invalidates old link!)
+  //           (pending / revoked / expired)
+  //   A3  role == "admin" + invitation.status =      -> IDEMPOTENT / NO-OP
+  //           accepted   (user already has access)
+  //   A4  role == "admin" + NO prior invitation row  -> send invite (edge case: manual promotion)
   // =====================================================================
   if (existingUser) {
-    console.log("[Invite API] Existing profile found, promoting:", existingUser.id);
+    console.log("[Invite API] Existing profile found:", existingUser);
 
-    // Auth-side user_metadata update
-    const { error: updateAuthError } = await adminAuthClient.auth.admin.updateUserById(
-      existingUser.id,
-      { user_metadata: { role: "admin" } }
+    // (A) Determine if the existing user is an admin or a customer
+    const isAlreadyAdmin = existingUser.role === "admin"
+      && existingUser.is_active !== false
+      && existingUser.deleted_at == null;
+
+    // (B) Fetch any prior admin_invitations row to know the lifecycle state
+    const { data: priorInvite, error: priorInviteErr } = await adminAuthClient
+      .from("admin_invitations")
+      .select("id, status, resent_count, last_sent_at")
+      .eq("email", email)
+      .maybeSingle();
+    if (priorInviteErr) {
+      console.warn("[Invite API] Branch-A: prior invitation lookup failed (ignoring):", priorInviteErr);
+    }
+
+    // =================================================================
+    // Sub-scenario A1: Customer (or non-admin role) => PROMOTE silently
+    // =================================================================
+    if (!isAlreadyAdmin) {
+      console.log(`[Invite API] Sub=A1 Promote: was role=${existingUser.role}, upgrading to admin`);
+
+      // Auth-side user_metadata update
+      const { error: updateAuthError } = await adminAuthClient.auth.admin.updateUserById(
+        existingUser.id,
+        { user_metadata: { role: "admin" } }
+      );
+      if (updateAuthError) {
+        console.error("[Invite API] Stage=promote_auth_metadata: error:", updateAuthError);
+        return NextResponse.json(
+          { error: "Failed to promote user (auth metadata)", stage: "promote_auth_metadata", details: updateAuthError },
+          { status: 500 }
+        );
+      }
+
+      // Profiles row update
+      const { error: updateProfileError } = await adminAuthClient
+        .from("profiles")
+        .update({ role: "admin", is_active: true, deleted_at: null })
+        .eq("id", existingUser.id);
+      if (updateProfileError) {
+        console.error("[Invite API] Stage=promote_profile: error:", updateProfileError);
+        return NextResponse.json(
+          { error: "Failed to promote user (profiles table)", stage: "promote_profile", details: updateProfileError },
+          { status: 500 }
+        );
+      }
+
+      // Best-effort: track promotion in admin_invitations
+      try {
+        const { error: trackError } = await adminAuthClient
+          .from("admin_invitations")
+          .upsert(
+            {
+              email,
+              invited_by: user.id,
+              status: "accepted",
+              token: `PROMOTED-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+              accepted_at: new Date().toISOString(),
+              last_sent_at: new Date().toISOString(),
+              expires_at: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString()
+            },
+            { onConflict: "email" }
+          );
+        if (trackError) throw trackError;
+      } catch (e: any) {
+        console.error("[Invite API] Warning tracking promotion:", e);
+        warnings.push(`Failed to track promotion: ${e?.message ?? String(e)}`);
+      }
+
+      // Best-effort: notify admins of the promotion
+      try {
+        const { data: adminProfiles } = await adminAuthClient
+          .from("profiles")
+          .select("id")
+          .eq("role", "admin")
+          .eq("is_active", true)
+          .is("deleted_at", null);
+        if (adminProfiles && adminProfiles.length > 0) {
+          const notifications = adminProfiles.map(a => ({
+            user_id: a.id,
+            title: "Admin Promoted",
+            message: `${email} has been promoted to Admin.`,
+            type: "info" as const
+          }));
+          const { error: nErr } = await adminAuthClient.from("notifications").insert(notifications);
+          if (nErr) throw nErr;
+        }
+      } catch (e: any) {
+        console.error("[Invite API] Warning sending promotion notifications:", e);
+        warnings.push(`Failed to send promotion notifications: ${e?.message ?? String(e)}`);
+      }
+
+      return NextResponse.json({
+        message: "Existing user promoted to Admin",
+        action: "promoted",
+        userId: existingUser.id,
+        warnings: warnings.length ? warnings : undefined
+      });
+    }
+
+    // =================================================================
+    // Sub-scenario A3: Already admin + last invite was "accepted" => IDEMPOTENT
+    //   They can sign in — nothing to do.  Admin UI will show "already has access".
+    // =================================================================
+    if (priorInvite && priorInvite.status === "accepted") {
+      console.log(`[Invite API] Sub=A3 Idempotent: ${email} is already admin, invitation status=accepted`);
+      return NextResponse.json({
+        message: "User already has Admin access",
+        action: "noop",
+        reason: "already_accepted",
+        userId: existingUser.id
+      });
+    }
+
+    // =================================================================
+    // Sub-scenarios A2 + A4:
+    //   A2 = already admin + priorInvite status in (pending / revoked / expired / null)
+    //   A4 = already admin but NO prior invitation in the table (they were manually created)
+    //   => Call inviteUserByEmail AGAIN.
+    //      Supabase regenerates the confirmation-token nonce for this auth.users row,
+    //      which AUTOMATICALLY INVALIDATES THE PREVIOUS EMAILED LINK (because only the
+    //      current nonce on auth.users.email_confirm_token is accepted by Supabase Auth).
+    //      Then upsert admin_invitations with incremented resent_count + fresh token/expiry.
+    // =================================================================
+    console.log(
+      `[Invite API] Sub=A2_or_A4 Resend invite: status=${priorInvite?.status ?? "none"} ` +
+      `priorResentCount=${priorInvite?.resent_count ?? 0} — calling inviteUserByEmail; old link will be invalid`
     );
-    if (updateAuthError) {
-      console.error("[Invite API] Stage=promote_auth_metadata: error:", updateAuthError);
+
+    const { error: resendAuthError } = await adminAuthClient.auth.admin.inviteUserByEmail(
+      email,
+      {
+        data: { role: "admin" },
+        redirectTo
+      }
+    );
+    if (resendAuthError) {
+      // Supabase may reject if the user was e.g. soft-deleted in auth.users.
+      console.error("[Invite API] Stage=resend_invite_auth: error:", resendAuthError);
       return NextResponse.json(
-        { error: "Failed to promote user (auth metadata)", stage: "promote_auth_metadata", details: updateAuthError },
-        { status: 500 }
+        {
+          error: "Failed to resend admin invitation",
+          message: resendAuthError.message,
+          stage: "resend_invite_auth",
+          code: resendAuthError.code,
+          details: resendAuthError
+        },
+        { status: 502 }
       );
     }
+    console.log(`[Invite API] Supabase inviteUserByEmail re-sent OK for ${email} — previous link now invalid`);
 
-    // Profiles row update
-    const { error: updateProfileError } = await adminAuthClient
-      .from("profiles")
-      .update({ role: "admin", is_active: true, deleted_at: null })
-      .eq("id", existingUser.id);
-    if (updateProfileError) {
-      console.error("[Invite API] Stage=promote_profile: error:", updateProfileError);
-      return NextResponse.json(
-        { error: "Failed to promote user (profiles table)", stage: "promote_profile", details: updateProfileError },
-        { status: 500 }
-      );
-    }
-
-    // Best-effort: track in admin_invitations
+    // Best-effort: bump counters + write a fresh token + expiry in admin_invitations
     try {
-      const { error: trackError } = await adminAuthClient
+      const nextResentCount = (priorInvite?.resent_count ?? 0) + 1;
+      const { error: trackErr } = await adminAuthClient
         .from("admin_invitations")
         .upsert(
           {
             email,
             invited_by: user.id,
-            status: "accepted",
-            token: `PROMOTED-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
-            accepted_at: new Date().toISOString(),
-            expires_at: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString()
+            status: "pending",          // Re-pend so admin UI knows we're waiting for acceptance
+            resent_count: nextResentCount,
+            last_sent_at: new Date().toISOString(),
+            token: `INVITE-RESEND-${nextResentCount}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+            accepted_at: null           // Reset — old acceptance isn't for this link
           },
           { onConflict: "email" }
         );
-      if (trackError) throw trackError;
+      if (trackErr) throw trackErr;
     } catch (e: any) {
-      console.error("[Invite API] Warning tracking promotion:", e);
-      warnings.push(`Failed to track promotion: ${e?.message ?? String(e)}`);
+      console.error("[Invite API] Warning tracking resent invite:", e);
+      warnings.push(`Failed to track re-sent invite: ${e?.message ?? String(e)}`);
     }
 
-    // Best-effort: notify admins of the promotion
+    // Best-effort: notify peer admins of the re-send
     try {
       const { data: adminProfiles } = await adminAuthClient
         .from("profiles")
@@ -211,32 +347,40 @@ export async function POST(request: Request) {
         .eq("is_active", true)
         .is("deleted_at", null);
       if (adminProfiles && adminProfiles.length > 0) {
-        const notifications = adminProfiles.map(a => ({
-          user_id: a.id,
-          title: "Admin Promoted",
-          message: `${email} has been promoted to Admin.`,
-          type: "info" as const
-        }));
-        const { error: nErr } = await adminAuthClient.from("notifications").insert(notifications);
-        if (nErr) throw nErr;
+        const notifications = adminProfiles
+          .filter(a => a.id !== user.id)
+          .map(a => ({
+            user_id: a.id,
+            title: "Admin Invite Re-sent",
+            message: `Admin invite re-sent to ${email} — previous invite link has been invalidated.`,
+            type: "info" as const
+          }));
+        if (notifications.length > 0) {
+          const { error: nErr } = await adminAuthClient.from("notifications").insert(notifications);
+          if (nErr) throw nErr;
+        }
       }
     } catch (e: any) {
-      console.error("[Invite API] Warning sending promotion notifications:", e);
-      warnings.push(`Failed to send promotion notifications: ${e?.message ?? String(e)}`);
+      console.error("[Invite API] Warning sending resend notifications:", e);
+      warnings.push(`Failed to send resend notifications: ${e?.message ?? String(e)}`);
     }
 
     return NextResponse.json({
-      message: "Existing user promoted to Admin",
-      action: "promoted",
+      message: "Invitation re-sent; previous link has been invalidated",
+      action: "resent",
       userId: existingUser.id,
+      email,
+      resentCount: (priorInvite?.resent_count ?? 0) + 1,
+      previousInviteStatus: priorInvite?.status ?? "none",
+      invalidatedPrevious: true,
       warnings: warnings.length ? warnings : undefined
     });
   }
 
   // =====================================================================
-  // BRANCH B: New user -> send invite
+  // BRANCH B: No profile yet => INITIAL INVITE (brand new user)
   // =====================================================================
-  console.log("[Invite API] No existing profile; sending invite. redirectTo=", redirectTo);
+  console.log("[Invite API] No existing profile; sending initial invite. redirectTo=", redirectTo);
 
   const { error: inviteError } = await adminAuthClient.auth.admin.inviteUserByEmail(
     email,
@@ -260,7 +404,7 @@ export async function POST(request: Request) {
   }
   console.log("[Invite API] Supabase inviteUserByEmail OK for:", email);
 
-  // Best-effort: track invitation in admin_invitations
+  // Best-effort: track initial invitation in admin_invitations
   try {
     const { error: trackError } = await adminAuthClient
       .from("admin_invitations")
@@ -269,6 +413,8 @@ export async function POST(request: Request) {
           email,
           invited_by: user.id,
           status: "pending",
+          resent_count: 0,
+          last_sent_at: new Date().toISOString(),
           token: `INVITE-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
           expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
         },

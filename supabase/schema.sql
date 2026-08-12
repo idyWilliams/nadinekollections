@@ -151,6 +151,8 @@ CREATE TABLE IF NOT EXISTS public.admin_invitations (
   token TEXT UNIQUE NOT NULL,
   expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '7 days'),
   accepted_at TIMESTAMPTZ,
+  resent_count INT NOT NULL DEFAULT 0,
+  last_sent_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -363,6 +365,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_user_id ON public.orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_banner_ads_active ON public.banner_ads(is_active, display_order) WHERE is_active = true;
 CREATE INDEX IF NOT EXISTS idx_orders_is_bulk ON public.orders(is_bulk_order) WHERE is_bulk_order = true;
 CREATE INDEX IF NOT EXISTS idx_admin_invitations_status ON public.admin_invitations(status) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_admin_invitations_last_sent_at ON public.admin_invitations(last_sent_at DESC NULLS LAST);
 CREATE INDEX IF NOT EXISTS idx_profiles_deleted_at ON public.profiles(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_profiles_is_active ON public.profiles(is_active);
 CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles(role) WHERE role = 'admin' AND is_active = true AND deleted_at IS NULL;

@@ -159,6 +159,20 @@ CREATE TABLE IF NOT EXISTS public.try_on_sessions (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Admin Invitations (for inviting other admins)
+CREATE TABLE IF NOT EXISTS public.admin_invitations (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  invited_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'expired', 'revoked')),
+  token TEXT UNIQUE NOT NULL,
+  expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '7 days'),
+  accepted_at TIMESTAMPTZ,
+  resent_count INT NOT NULL DEFAULT 0,
+  last_sent_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
@@ -169,6 +183,18 @@ ALTER TABLE public.shipping_zones ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.promotions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.banner_ads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.try_on_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_invitations ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for Admin Invitations
+CREATE POLICY "Admins can view all invitations" ON public.admin_invitations FOR SELECT USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+);
+CREATE POLICY "Admins can create invitations" ON public.admin_invitations FOR INSERT WITH CHECK (
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+);
+CREATE POLICY "Admins can update invitations" ON public.admin_invitations FOR UPDATE USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+);
 
 -- RLS Policies
 
