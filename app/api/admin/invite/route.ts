@@ -102,7 +102,7 @@ export async function POST(request: Request) {
   }
   console.log("[Invite API] Target email:", email);
 
-  // ---- Stage 3: Admin supabase client ----------------------------------
+  // ---- Stage 3: Admin supabase client + URL pre-flight checks -----------
   let adminAuthClient;
   try {
     adminAuthClient = createAdminClient();
@@ -116,6 +116,23 @@ export async function POST(request: Request) {
 
   const warnings: string[] = [];
   const siteUrl = config.site.url;
+  const redirectTo = `${siteUrl}/admin/login`;
+
+  // Explicit URL log — searchable in production logs for invite-link debugging
+  console.log(
+    `[Invite API] NODE_ENV=${process.env.NODE_ENV} siteUrl=${siteUrl} redirectTo=${redirectTo}`
+  );
+  if (process.env.NODE_ENV === "production" && !redirectTo.startsWith("https://")) {
+    console.error("[Invite API] Stage=env_check: redirectTo is not HTTPS in production:", redirectTo);
+    return NextResponse.json(
+      {
+        error: "Server configuration error: site URL is misconfigured in production",
+        stage: "env_check",
+        redirectTo
+      },
+      { status: 500 }
+    );
+  }
 
   // ---- Stage 4: Find existing profile ----------------------------------
   const { data: existingUser, error: existingUserError } = await adminAuthClient
@@ -219,13 +236,13 @@ export async function POST(request: Request) {
   // =====================================================================
   // BRANCH B: New user -> send invite
   // =====================================================================
-  console.log("[Invite API] No existing profile; sending invite. redirectTo=", `${siteUrl}/admin/login`);
+  console.log("[Invite API] No existing profile; sending invite. redirectTo=", redirectTo);
 
   const { error: inviteError } = await adminAuthClient.auth.admin.inviteUserByEmail(
     email,
     {
       data: { role: "admin" },
-      redirectTo: `${siteUrl}/admin/login`
+      redirectTo
     }
   );
   if (inviteError) {
