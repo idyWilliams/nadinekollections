@@ -51,6 +51,21 @@ export function SettingsPanel() {
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [invitations, setInvitations] = useState<AdminInvitation[]>([]);
   const [admins, setAdmins] = useState<AdminProfile[]>([]);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    actionLabel: string;
+    onConfirm: () => void | Promise<void>;
+    variant?: "primary" | "destructive";
+  }>({
+    isOpen: false,
+    title: "",
+    description: "",
+    actionLabel: "",
+    onConfirm: () => {},
+    variant: "primary",
+  });
 
   // Settings State
   const [settings, setSettings] = useState({
@@ -201,50 +216,67 @@ export function SettingsPanel() {
   };
 
   const handleRevokeInvite = async (email: string) => {
-    if (!confirm(`Are you sure you want to revoke the invitation for ${email}?`)) return;
-    setLoading(true);
-    try {
-      const response = await fetch("/api/admin/invite/revoke", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
+    setConfirmDialog({
+      isOpen: true,
+      title: "Revoke Invitation",
+      description: `Are you sure you want to revoke the invitation for ${email}?`,
+      actionLabel: "Revoke",
+      variant: "destructive",
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          const response = await fetch("/api/admin/invite/revoke", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email }),
+          });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to revoke invitation");
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || "Failed to revoke invitation");
 
-      toast.success(data.message || "Invitation revoked successfully");
-      fetchAdmins();
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Failed to revoke invitation";
-      toast.error(message);
-    } finally {
-      setLoading(false);
-    }
+          toast.success(data.message || "Invitation revoked successfully");
+          fetchAdmins();
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : "Failed to revoke invitation";
+          toast.error(message);
+        } finally {
+          setLoading(false);
+          setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+        }
+      },
+    });
   };
 
   const handleBanAdmin = async (adminId: string, currentlyActive: boolean) => {
     const actionLabel = currentlyActive ? "ban" : "reactivate";
-    if (!confirm(`Are you sure you want to ${actionLabel} this admin?`)) return;
-
-    setLoading(true);
-    try {
-      const action = currentlyActive ? "ban" : "reactivate";
-      const response = await fetch("/api/admin/ban", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ adminId, action }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
-      toast.success(data.message);
-      fetchAdmins();
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Failed to update admin status";
-      toast.error(message);
-    } finally {
-      setLoading(false);
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: `${currentlyActive ? "Ban" : "Reactivate"} Admin`,
+      description: `Are you sure you want to ${actionLabel} this admin?`,
+      actionLabel: currentlyActive ? "Ban" : "Reactivate",
+      variant: currentlyActive ? "destructive" : "primary",
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          const action = currentlyActive ? "ban" : "reactivate";
+          const response = await fetch("/api/admin/ban", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ adminId, action }),
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error);
+          toast.success(data.message);
+          fetchAdmins();
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : "Failed to update admin status";
+          toast.error(message);
+        } finally {
+          setLoading(false);
+          setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+        }
+      },
+    });
   };
 
   const providers = [
@@ -497,6 +529,27 @@ export function SettingsPanel() {
           </CardContent>
         </Card>
       </TabsContent>
+
+      <Dialog open={confirmDialog.isOpen} onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, isOpen: open }))}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{confirmDialog.title}</DialogTitle>
+            <DialogDescription>{confirmDialog.description}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}>
+              Cancel
+            </Button>
+            <Button
+              variant={confirmDialog.variant === "destructive" ? "destructive" : "primary"}
+              onClick={confirmDialog.onConfirm}
+              disabled={loading}
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : confirmDialog.actionLabel}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Tabs>
   );
 }
