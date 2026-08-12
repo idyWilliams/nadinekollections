@@ -30,9 +30,12 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   full_name TEXT,
   email TEXT,
-  role TEXT DEFAULT 'customer' CHECK (role IN ('customer', 'admin')),
+  role TEXT DEFAULT 'customer' CHECK (role IN ('customer', 'admin', 'super_admin', 'manager', 'support')),
   avatar_url TEXT,
   phone TEXT,
+  is_active BOOLEAN DEFAULT true,
+  deleted_at TIMESTAMPTZ,
+  billing_info JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -200,26 +203,85 @@ CREATE POLICY "Users view own sessions" ON public.try_on_sessions FOR SELECT USI
 
 -- Functions & Triggers
 
--- Handle New User Signup -> Create Profile
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.profiles (id, full_name, email, role, avatar_url)
-  VALUES (
-    new.id,
-    new.raw_user_meta_data->>'full_name',
-    new.email,
-    COALESCE(new.raw_user_meta_data->>'role', 'customer'),
-    new.raw_user_meta_data->>'avatar_url'
-  );
-  RETURN new;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
+-- Handle New User Signup -> Create Profile (hardened: EXCEPTION-safe, explicit search_path)
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_catalog
+AS $$
+BEGIN
+  INSERT INTO public.profiles (id, full_name, email, role, avatar_url, phone, is_active, deleted_at)
+  VALUES (
+    NEW.id,
+    NEW.raw_user_meta_data->>'full_name',
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'role', 'customer'),
+    NEW.raw_user_meta_data->>'avatar_url',
+    NEW.phone,
+    true,
+    NULL
+  );
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'handle_new_user: failed to create profile for user % (%). User NOT rolled back.',
+    NEW.id, SQLERRM;
+  RETURN NEW;
+END;
+$$;
+
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_new_user();
+
+-- Notify admins on admin profile created (hardened: EXCEPTION-safe sub-transactions, explicit search_path)
+DROP TRIGGER IF EXISTS on_admin_profile_created ON public.profiles;
+CREATE OR REPLACE FUNCTION public.notify_admin_acceptance()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_catalog
+AS $$
+BEGIN
+  IF NEW.role = 'admin' THEN
+    BEGIN
+      INSERT INTO public.notifications (user_id, title, message, type)
+      SELECT p.id,
+             'Admin Joined',
+             COALESCE(NEW.email, 'A new admin') || ' has joined the team.',
+             'info'::notification_type
+      FROM   public.profiles p
+      WHERE  p.role = 'admin'
+        AND  p.id IS DISTINCT FROM NEW.id
+        AND  p.is_active = true
+        AND  p.deleted_at IS NULL;
+    EXCEPTION WHEN OTHERS THEN
+      RAISE WARNING 'notify_admin_acceptance: notification insert failed: %', SQLERRM;
+    END;
+
+    BEGIN
+      UPDATE public.admin_invitations
+      SET    status      = 'accepted',
+             accepted_at = NOW()
+      WHERE  email  = NEW.email
+        AND  status = 'pending';
+    EXCEPTION WHEN OTHERS THEN
+      RAISE WARNING 'notify_admin_acceptance: invite update failed: %', SQLERRM;
+    END;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER on_admin_profile_created
+  AFTER INSERT ON public.profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION public.notify_admin_acceptance();
+
+REVOKE ALL ON FUNCTION public.handle_new_user() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.notify_admin_acceptance() FROM PUBLIC;
 
 `;
 

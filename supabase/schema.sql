@@ -7,9 +7,12 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   full_name TEXT,
   email TEXT,
-  role TEXT DEFAULT 'customer' CHECK (role IN ('customer', 'admin')),
+  role TEXT DEFAULT 'customer' CHECK (role IN ('customer', 'admin', 'super_admin', 'manager', 'support')),
   avatar_url TEXT,
   phone TEXT,
+  is_active BOOLEAN DEFAULT true,
+  deleted_at TIMESTAMPTZ,
+  billing_info JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -151,6 +154,26 @@ CREATE TABLE IF NOT EXISTS public.admin_invitations (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Notifications (for admin + user notifications)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'notification_type') THEN
+    CREATE TYPE notification_type AS ENUM ('info', 'success', 'warning', 'error');
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  type notification_type DEFAULT 'info',
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  link TEXT,
+  is_read BOOLEAN DEFAULT false,
+  metadata JSONB,
+  created_at TIMESTAMPTZ DEFAULT (NOW() AT TIME ZONE 'utc') NOT NULL
+);
+
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
@@ -162,6 +185,44 @@ ALTER TABLE public.promotions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.banner_ads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.try_on_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_invitations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+-- -------- Notifications RLS --------
+DROP POLICY IF EXISTS "Users can view their own and system-wide notifications" ON public.notifications;
+CREATE POLICY "Users can view their own and system-wide notifications"
+  ON public.notifications FOR SELECT
+  USING (auth.uid() = user_id OR user_id IS NULL);
+
+DROP POLICY IF EXISTS "Admins can view all notifications" ON public.notifications;
+CREATE POLICY "Admins can view all notifications"
+  ON public.notifications FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE profiles.id = auth.uid()
+        AND profiles.role = 'admin'
+        AND profiles.is_active = true
+        AND profiles.deleted_at IS NULL
+    )
+  );
+
+DROP POLICY IF EXISTS "Active non-deleted admins can insert notifications" ON public.notifications;
+CREATE POLICY "Active non-deleted admins can insert notifications"
+  ON public.notifications FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE profiles.id = auth.uid()
+        AND profiles.role = 'admin'
+        AND profiles.is_active = true
+        AND profiles.deleted_at IS NULL
+    )
+  );
+
+DROP POLICY IF EXISTS "Users can update their own notifications" ON public.notifications;
+CREATE POLICY "Users can update their own notifications"
+  ON public.notifications FOR UPDATE
+  USING (auth.uid() = user_id);
 
 -- RLS Policies
 
@@ -209,25 +270,87 @@ CREATE POLICY "Users view own sessions" ON public.try_on_sessions FOR SELECT USI
 -- Functions & Triggers
 
 -- Handle New User Signup -> Create Profile
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.profiles (id, full_name, email, role, avatar_url)
-  VALUES (
-    new.id,
-    new.raw_user_meta_data->>'full_name',
-    new.email,
-    COALESCE(new.raw_user_meta_data->>'role', 'customer'),
-    new.raw_user_meta_data->>'avatar_url'
-  );
-  RETURN new;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
+-- EXCEPTION block guarantees profile-insert failure NEVER rolls back auth.users.
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_catalog
+AS $$
+BEGIN
+  INSERT INTO public.profiles (id, full_name, email, role, avatar_url, phone, is_active, deleted_at)
+  VALUES (
+    NEW.id,
+    NEW.raw_user_meta_data->>'full_name',
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'role', 'customer'),
+    NEW.raw_user_meta_data->>'avatar_url',
+    NEW.phone,
+    true,
+    NULL
+  );
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'handle_new_user: failed to create profile for user % (%). User NOT rolled back.',
+    NEW.id, SQLERRM;
+  RETURN NEW;
+END;
+$$;
+
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_new_user();
+
+-- Notify existing admins when an admin profile is created, and mark invitation accepted.
+-- Each side-effect is wrapped in a sub-transaction so no single failure can cascade upward.
+DROP TRIGGER IF EXISTS on_admin_profile_created ON public.profiles;
+CREATE OR REPLACE FUNCTION public.notify_admin_acceptance()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_catalog
+AS $$
+BEGIN
+  IF NEW.role = 'admin' THEN
+    BEGIN
+      INSERT INTO public.notifications (user_id, title, message, type)
+      SELECT p.id,
+             'Admin Joined',
+             COALESCE(NEW.email, 'A new admin') || ' has joined the team.',
+             'info'::notification_type
+      FROM   public.profiles p
+      WHERE  p.role = 'admin'
+        AND  p.id IS DISTINCT FROM NEW.id
+        AND  p.is_active = true
+        AND  p.deleted_at IS NULL;
+    EXCEPTION WHEN OTHERS THEN
+      RAISE WARNING 'notify_admin_acceptance: notification insert failed: %', SQLERRM;
+    END;
+
+    BEGIN
+      UPDATE public.admin_invitations
+      SET    status      = 'accepted',
+             accepted_at = NOW()
+      WHERE  email  = NEW.email
+        AND  status = 'pending';
+    EXCEPTION WHEN OTHERS THEN
+      RAISE WARNING 'notify_admin_acceptance: invite update failed: %', SQLERRM;
+    END;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER on_admin_profile_created
+  AFTER INSERT ON public.profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION public.notify_admin_acceptance();
+
+-- Revoke public EXECUTE on SECURITY DEFINER functions (least privilege)
+REVOKE ALL ON FUNCTION public.handle_new_user() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.notify_admin_acceptance() FROM PUBLIC;
 
 -- Performance Indexes
 CREATE INDEX IF NOT EXISTS idx_products_is_featured ON public.products(is_featured) WHERE is_featured = true AND is_active = true;
@@ -240,6 +363,11 @@ CREATE INDEX IF NOT EXISTS idx_orders_user_id ON public.orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_banner_ads_active ON public.banner_ads(is_active, display_order) WHERE is_active = true;
 CREATE INDEX IF NOT EXISTS idx_orders_is_bulk ON public.orders(is_bulk_order) WHERE is_bulk_order = true;
 CREATE INDEX IF NOT EXISTS idx_admin_invitations_status ON public.admin_invitations(status) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_profiles_deleted_at ON public.profiles(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_profiles_is_active ON public.profiles(is_active);
+CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles(role) WHERE role = 'admin' AND is_active = true AND deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id, is_read) WHERE user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON public.notifications(created_at DESC);
 
 -- RLS Policies for Admin Invitations
 DROP POLICY IF EXISTS "Admins can view all invitations" ON public.admin_invitations;
