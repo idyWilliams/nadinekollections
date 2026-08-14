@@ -90,7 +90,7 @@ async function deleteCustomersPreserveAdmins(): Promise<{ deleted: number; kept:
   const { error: profileDelError } = await supabase
     .from('profiles')
     .delete()
-    .not('id', 'in', `(${adminIds.map(() => '?').join(',')})`, ...adminIds)
+    .not('id', 'in', `(${adminIds.join(',')})`)
     .or(`role.eq.customer,role.is.null`);
 
   if (profileDelError) console.log(`   ⚠️  Profile cleanup warning: ${profileDelError.message}`);
@@ -151,8 +151,8 @@ async function main() {
   const confirm1 = await ask('\n❓ Type "YESWIPE" to confirm wiping ALL production data (except admins): ');
   if (confirm1.trim() !== 'YESWIPE') { console.log('Cancelled.'); process.exit(0); }
 
-  const confirm2 = await ask('❓ Type the project reference "' + SUPABASE_URL.split('.')[0].replace('https://', '') + '" to CONFIRM: ');
-  const expected = SUPABASE_URL.split('.')[0].replace('https://', '');
+  const confirm2 = await ask('❓ Type the project reference "' + SUPABASE_URL!.split('.')[0].replace('https://', '') + '" to CONFIRM: ');
+  const expected = SUPABASE_URL!.split('.')[0].replace('https://', '');
   if (confirm2.trim() !== expected) { console.log('Project ref mismatch — Cancelled.'); process.exit(0); }
 
   console.log('\n🚨 COMMENCING WIPE IN 3 SECONDS — PRESS Ctrl+C NOW TO ABORT 🚨');

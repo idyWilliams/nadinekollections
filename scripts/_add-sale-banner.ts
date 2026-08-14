@@ -58,9 +58,9 @@ const MISSING_BANNER = {
     .order('display_order');
 
   console.log('Current banners:\n');
-  now.forEach((b) => console.log(`   order=${b.display_order}  "${b.title}"`));
+  now.forEach((b: any) => console.log(`   order=${b.display_order}  "${b.title}"`));
 
-  const existingSale = now.find((b) => b.title === MISSING_BANNER.title);
+  const existingSale = now.find((b: any) => b.title === MISSING_BANNER.title);
   if (existingSale) {
     console.log('\nℹ️  Sale banner already exists — skipping insert.');
   } else {

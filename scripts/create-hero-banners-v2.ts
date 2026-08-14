@@ -197,9 +197,9 @@ async function fetchBannerImage(prompt: string, idx: number, total: number): Pro
 
   const { count: finalCount, data: finalBanners }: any = await sb
     .from('banner_ads')
-    .select('id,title,subtitle,cta_text,cta_link,display_order,image_url')
+    .select('id,title,subtitle,cta_text,cta_link,display_order,image_url', { count: 'exact' })
     .eq('is_active', true)
-    .order('display_order', { count: 'exact' });
+    .order('display_order');
 
   console.log('='.repeat(70));
   console.log(`  DONE — ${created}/${BANNERS.length} banners created. Active total: ${finalCount}`);
