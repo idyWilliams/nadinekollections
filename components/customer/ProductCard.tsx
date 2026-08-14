@@ -19,7 +19,8 @@ interface ProductCardProps {
   price: number;
   salePrice?: number;
   image: string;
-  category: string;
+  category: string | string[];
+  brand_name?: string | null;
   isNew?: boolean;
   isSale?: boolean;
   stock?: number;
@@ -35,6 +36,7 @@ export function ProductCard({
   salePrice,
   image,
   category,
+  brand_name,
   isNew,
   stock = 0,
   isActive = true,
@@ -74,6 +76,15 @@ export function ProductCard({
     ? Math.round(((price - salePrice) / price) * 100)
     : 0;
 
+  const categoryList = Array.isArray(category)
+    ? category
+    : category
+      ? [category]
+      : [];
+
+  const primaryCategory = categoryList[0] || "all";
+  const topChips = categoryList.slice(0, 2);
+
   const cardRef = React.useRef<HTMLDivElement>(null);
 
   return (
@@ -101,7 +112,7 @@ export function ProductCard({
             removeItem(id);
             toast.info("Removed from wishlist");
           } else {
-            addToWishlist({ id, title, slug, price, image: displayImage, category });
+            addToWishlist({ id, title, slug, price, image: displayImage, category: primaryCategory });
             toast.success("Added to wishlist");
           }
         }}
@@ -114,7 +125,7 @@ export function ProductCard({
         <Heart className={`h-4 w-4 ${isInWishlist(id) ? "fill-current" : ""}`} />
       </button>
 
-      <Link href={`/shop/${category.toLowerCase()}/${slug}${selectedVariant ? `?variantId=${selectedVariant.id}` : ''}`}>
+      <Link href={`/shop/${primaryCategory.toLowerCase()}/${slug}${selectedVariant ? `?variantId=${selectedVariant.id}` : ''}`}>
         <div className="relative mb-4 aspect-square overflow-hidden rounded-xl bg-gray-100">
           <OptimizedImage
             src={displayImage}
@@ -128,10 +139,24 @@ export function ProductCard({
       </Link>
 
       <div className="space-y-2">
-        <p className="text-xs text-text-muted uppercase tracking-wider">
-          {category}
-        </p>
-        <Link href={`/shop/${category.toLowerCase()}/${slug}${selectedVariant ? `?variantId=${selectedVariant.id}` : ''}`}>
+        {brand_name && (
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-primary">
+            {brand_name}
+          </p>
+        )}
+        {topChips.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {topChips.map((c) => (
+              <span
+                key={c}
+                className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-muted/60 text-text-secondary border border-border-light"
+              >
+                {c}
+              </span>
+            ))}
+          </div>
+        )}
+        <Link href={`/shop/${primaryCategory.toLowerCase()}/${slug}${selectedVariant ? `?variantId=${selectedVariant.id}` : ''}`}>
           <h3 className="line-clamp-2 text-base font-semibold text-text-primary group-hover:text-primary transition-colors">
             {title}
           </h3>

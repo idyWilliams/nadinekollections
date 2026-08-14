@@ -851,7 +851,8 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
                   price={parseFloat(formData.originalPrice) || parseFloat(formData.salePrice) || 0}
                   salePrice={parseFloat(formData.salePrice) || 0}
                   image={images[0] || "/placeholder.jpg"}
-                  category={formData.category[0] || "Uncategorized"}
+                  category={formData.category.length > 0 ? formData.category : ["Uncategorized"]}
+                  brand_name={brands.find((b) => b.id === formData.brandId)?.name ?? null}
                   stock={parseInt(formData.stock) || 0}
                   isNew={!isEditing}
                   isActive={formData.isActive}

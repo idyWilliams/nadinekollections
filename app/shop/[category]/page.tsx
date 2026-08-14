@@ -171,7 +171,8 @@ export default async function CategoryPage({
                       price={product.price}
                       salePrice={product.sale_price ?? undefined}
                       image={product.primary_image || (product.images && product.images[0]) || "/placeholder.jpg"}
-                      category={categoryName}
+                      category={product.category}
+                      brand_name={product.brand?.name ?? null}
                       isNew={product.is_new}
                       stock={product.stock}
                       isActive={product.is_active}

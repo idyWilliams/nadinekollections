@@ -70,7 +70,8 @@ export default async function ProductPage({
                   price={relatedProduct.price}
                   salePrice={relatedProduct.sale_price ?? undefined}
                   image={relatedProduct.primary_image || (relatedProduct.images && relatedProduct.images[0]) || "/placeholder.jpg"}
-                  category={Array.isArray(relatedProduct.category) ? relatedProduct.category[0] : relatedProduct.category}
+                  category={relatedProduct.category}
+                  brand_name={relatedProduct.brand?.name ?? null}
                   isNew={relatedProduct.is_new}
                   stock={relatedProduct.stock}
                   isActive={relatedProduct.is_active}
