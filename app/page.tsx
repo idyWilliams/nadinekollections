@@ -18,10 +18,54 @@ export default async function Home() {
   ]);
 
   const categories = [
-    { name: "Kids", image: "/kidsCategory.jpeg", link: "/shop/kids" },
-    { name: "Women", image: "/banners/womenCategory.png", link: "/shop/women" },
-    { name: "Men", image: "/banners/menCategory.png", link: "/shop/men" },
-    { name: "Accessories", image: "/banners/cat_accessories.png", link: "/shop/accessories" },
+    {
+      name: "Women",
+      image:
+        "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=elegant%20nude%20corporate%20pump%20heels%20shoes%20comfortable%20attractive%20luxury%20fashion%20product%20photography%20soft%20lighting&image_size=landscape_4_3",
+      link: "/shop/women",
+    },
+    {
+      name: "Men",
+      image:
+        "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=handsome%20mature%20african%20man%20well%20dressed%20clean%20smart%20casual%20fashion%20professional%20portrait%20studio%20lighting&image_size=landscape_4_3",
+      link: "/shop/men",
+    },
+    {
+      name: "Shoes",
+      image:
+        "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=luxury%20collection%20of%20mens%20womens%20shoes%20heels%20pumps%20loafers%20sneakers%20flats%20premium%20fashion%20display&image_size=landscape_4_3",
+      link: "/shop/all?categories=Shoes",
+    },
+    {
+      name: "Wigs",
+      image:
+        "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=beautiful%20african%20woman%20with%20long%20luxurious%20hair%20wig%20all%20colors%20straight%20curly%20waves%20fashion%20beauty&image_size=landscape_4_3",
+      link: "/shop/all?categories=Wigs",
+    },
+    {
+      name: "Bags",
+      image:
+        "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=elegant%20luxury%20handbags%20purses%20leather%20bags%20collection%20premium%20fashion%20accessories%20display&image_size=landscape_4_3",
+      link: "/shop/all?categories=Bags",
+    },
+    {
+      name: "Kids",
+      image:
+        "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=cute%20happy%20african%20kids%20children%20colorful%20fashion%20clothes%20shoes%20bags%20smiling%20studio&image_size=landscape_4_3",
+      link: "/shop/kids",
+    },
+    {
+      name: "Teens",
+      image:
+        "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=stylish%20african%20teenagers%20teens%20fashion%20casual%20wear%20trendy%20outfits%20youth%20style&image_size=landscape_4_3",
+      link: "/shop/all?categories=Teens",
+    },
+    {
+      name: "Gadgets",
+      image:
+        "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=tech%20gadgets%20phone%20holders%20cameras%20dashcams%20ring%20lights%20makeup%20boxes%20modern%20products%20flat%20lay&image_size=landscape_4_3",
+      link: "/shop/gadgets",
+    },
   ];
 
   return (
@@ -78,12 +122,12 @@ export default async function Home() {
         <section className="py-12 md:py-20 bg-surface">
           <div className="container mx-auto px-4 md:px-6">
             <h2 className="text-3xl font-bold mb-8 md:mb-12 text-center">Shop by Category</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
               {categories.map((cat) => (
                 <Link
                   key={cat.name}
                   href={cat.link}
-                  className="group relative block h-[300px] md:h-[400px] overflow-hidden rounded-2xl"
+                  className="group relative block h-[200px] sm:h-[260px] md:h-[300px] lg:h-[340px] overflow-hidden rounded-2xl"
                 >
                   <OptimizedImage
                     src={cat.image}
