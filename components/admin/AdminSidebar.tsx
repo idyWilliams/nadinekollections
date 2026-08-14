@@ -10,7 +10,8 @@ import {
   Settings,
   LogOut,
   BarChart,
-  X
+  X,
+  Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import { Button } from "@/components/ui/button";
 const sidebarLinks = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Products", href: "/admin/products", icon: Package },
+  { name: "Categories", href: "/admin/categories", icon: Tag },
   { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
   { name: "Bulk Orders", href: "/admin/bulk-orders", icon: Package },
   { name: "Customers", href: "/admin/customers", icon: Users },
