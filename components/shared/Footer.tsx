@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { Facebook, Instagram } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const TikTokIcon = ({ className = "" }: { className?: string }) => (
   <svg
@@ -16,7 +18,7 @@ export function Footer() {
   return (
     <footer className="bg-surface border-t border-border-light pt-16 pb-8">
       <div className="container mx-auto px-4 md:px-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-12">
           {/* Brand */}
           <div className="space-y-4">
             <h3 className="text-lg font-bold text-primary">Nadine Kollections</h3>
@@ -119,6 +121,18 @@ export function Footer() {
                 </Link>
               </li>
             </ul>
+          </div>
+
+          {/* Stay Updated */}
+          <div>
+            <h4 className="font-semibold mb-4">Stay Updated</h4>
+            <p className="text-sm text-text-secondary mb-4">
+              Subscribe to get special offers, free giveaways, and once-in-a-lifetime deals.
+            </p>
+            <form className="space-y-2">
+              <Input placeholder="Enter your email" type="email" />
+              <Button className="w-full">Subscribe</Button>
+            </form>
           </div>
         </div>
 
