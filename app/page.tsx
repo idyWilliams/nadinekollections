@@ -5,6 +5,7 @@ import { OptimizedImage } from "@/components/ui/optimized-image";
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { getFeaturedProducts } from "@/lib/services/products";
 import { getActiveBanners } from "@/lib/services/banners";
 
