@@ -21,7 +21,9 @@ interface ProductDetailsProps {
     sale_price?: number;
     primary_image: string;
     images?: string[];
-    category: string;
+    category: string | string[];
+    brand_name?: string | null;
+    sku?: string | null;
     stock: number;
     variants?: unknown[]; // flexible for now
     features?: string[];
@@ -125,6 +127,26 @@ export function ProductDetails({ product }: ProductDetailsProps) {
     ? Math.round(((product.price - product.sale_price) / product.price) * 100)
     : 0;
 
+  const categoryList = Array.isArray(product.category)
+    ? product.category
+    : product.category
+      ? [product.category]
+      : [];
+
+  const displaySku = selectedVariant?.sku || product.sku || null;
+  const displayStockQty = selectedVariant
+    ? selectedVariant.stock
+    : hasVariants
+      ? 0
+      : product.stock;
+
+  const stockBadge = (() => {
+    if (displayStockQty === 0) return { label: "Out of Stock", variant: "destructive" as const };
+    if (displayStockQty <= 5) return { label: `Only ${displayStockQty} left`, variant: "default" as const };
+    if (displayStockQty <= 20) return { label: "In Stock", variant: "secondary" as const };
+    return { label: "In Stock", variant: "secondary" as const };
+  })();
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
       {/* Image Gallery */}
@@ -186,9 +208,28 @@ export function ProductDetails({ product }: ProductDetailsProps) {
       {/* Product Info */}
       <div className="space-y-6">
         <div>
-          <p className="text-sm text-text-secondary uppercase tracking-wider mb-2">
-            {Array.isArray(product.category) ? product.category[0] : product.category}
-          </p>
+          {/* Brand */}
+          {product.brand_name && (
+            <p className="text-sm font-semibold uppercase tracking-wider text-primary mb-1">
+              {product.brand_name}
+            </p>
+          )}
+
+          {/* Category Tags */}
+          {categoryList.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {categoryList.map((c) => (
+                <Link
+                  key={c}
+                  href={`/shop/${c.toLowerCase()}`}
+                  className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-muted/50 text-text-secondary border border-border-light hover:bg-primary/10 hover:text-primary hover:border-primary/20 transition-colors"
+                >
+                  {c}
+                </Link>
+              ))}
+            </div>
+          )}
+
           <h1 className="text-3xl md:text-4xl font-bold mb-4">{product.title}</h1>
 
           {/* Price */}
@@ -202,6 +243,19 @@ export function ProductDetails({ product }: ProductDetailsProps) {
               </span>
             )}
           </div>
+
+          {/* SKU + Stock summary row */}
+          <div className="flex flex-wrap items-center gap-3 mb-4 text-xs text-text-secondary">
+            {displaySku && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted/40 border border-border-light font-mono">
+                SKU: <span className="font-semibold text-text-primary">{displaySku}</span>
+              </span>
+            )}
+            <Badge variant={stockBadge.variant === "default" ? "default" : stockBadge.variant === "destructive" ? "destructive" : "secondary"} className="text-[11px]">
+              {stockBadge.label}
+            </Badge>
+          </div>
+
           <p className="text-text-secondary leading-relaxed text-lg">
             {product.description}
           </p>

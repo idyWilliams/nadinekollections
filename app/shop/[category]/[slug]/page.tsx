@@ -51,7 +51,9 @@ export default async function ProductPage({
           description: product.description || "",
           primary_image: product.primary_image || "/placeholder.png",
           sale_price: product.sale_price === null ? undefined : product.sale_price,
-          category: product.category[0] || "Uncategorized"
+          category: product.category,
+          brand_name: product.brand?.name ?? null,
+          sku: product.sku ?? null,
         }} />
 
         {/* Related Products / You May Also Like */}
