@@ -8,22 +8,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Upload, X, GripVertical, Tag, DollarSign, Package, Image as ImageIcon, Eye, ChevronDown, Info, Plus, Trash2, Wand2 } from "lucide-react";
+import { Upload, X, GripVertical, Tag, DollarSign, Package, Image as ImageIcon, Eye, Info, Plus, Trash2, Wand2, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { ProductCard } from "@/components/customer/ProductCard";
 
 
@@ -33,6 +29,7 @@ interface ProductFormProps {
     title?: string;
     description?: string;
     category?: string[];
+    brand_id?: string;
     original_price?: number;
     sale_price?: number;
     price?: number;
@@ -46,7 +43,9 @@ interface ProductFormProps {
     gallery_images?: string[];
     is_featured?: boolean;
     is_active?: boolean;
-    variants?: ProductVariant[];
+    variants?: Array<Partial<ProductVariant> & {
+      attributes?: { color?: string; size?: string; hex?: string };
+    }>;
   };
   isEditing?: boolean;
 }
@@ -55,6 +54,7 @@ interface FormData {
   title: string;
   description: string;
   category: string[];
+  brandId: string;
   originalPrice: string;
   salePrice: string;
   stock: string;
@@ -78,6 +78,58 @@ interface ProductVariant {
   hex?: string;
 }
 
+// ------------------------- CATEGORY TAXONOMY ------------------------------
+// Top-level buckets (first tag) + sub categories (extra tags)
+// A product can be tagged with MULTIPLE — e.g. ["Women", "Shoes", "Pumps", "Corporate"]
+const TOP_LEVEL_CATEGORIES = [
+  "Women", "Men", "Kids", "Teens",
+  "Accessories", "Gadgets", "Beauty",
+];
+const SUB_CATEGORIES = [
+  // Apparel types
+  "Clothing", "Corporate Wear", "Leisure Wear", "Casual Wear", "Formal Wear",
+  // Footwear — major category (user says shoes are huge)
+  "Shoes", "Pumps", "Heels", "Flats", "Loafers", "Palms",
+  "Sneakers", "Sandals", "Boots", "Slippers",
+  // Women's big-ticket lines
+  "Wigs", "Bags", "Handbags", "Purses",
+  "Watches", "Bangles", "Jewelry", "Earrings",
+  "Hosiery", "Pantyhose", "Scarves",
+  // Kids/teens/men sub
+  "Girls", "Boys", "School Wear",
+  "Caps", "Jeans", "Shirts", "Suits",
+  // Aviation + corporate niche (niche premium)
+  "Aviation", "Aviation Pins",
+  // Beauty
+  "Makeup", "Makeup Brushes", "Makeup Boxes", "Ring Lights",
+  // Gadgets sub
+  "Phone Holders", "Cameras", "Dashcams",
+];
+const ALL_CATEGORIES = Array.from(new Set([...TOP_LEVEL_CATEGORIES, ...SUB_CATEGORIES]));
+
+// Helper: category -> suggested "applies to" (audience) tags – purely for ProductFilters sidebar.
+const CATEGORY_GROUPS: Record<string, string[]> = {
+  "Audience":     ["Women", "Men", "Kids", "Teens", "Girls", "Boys"],
+  "Product Type": ["Clothing", "Shoes", "Wigs", "Bags", "Handbags", "Purses",
+                 "Watches", "Jewelry", "Earrings", "Bangles", "Hosiery", "Pantyhose",
+                 "Scarves", "Caps", "Jeans", "Shirts", "Suits",
+                 "Makeup", "Makeup Brushes", "Makeup Boxes", "Ring Lights",
+                 "Phone Holders", "Cameras", "Dashcams"],
+  "Shoe Styles":  ["Pumps", "Heels", "Flats", "Loafers", "Palms", "Sneakers",
+                 "Sandals", "Boots", "Slippers"],
+  "Style/Occasion": ["Corporate Wear", "Leisure Wear", "Casual Wear", "Formal Wear",
+                    "School Wear"],
+  "Niche": ["Aviation", "Aviation Pins"],
+};
+// ------------------------------------------------------------------
+
+interface Brand {
+  id: string;
+  name: string;
+  slug?: string;
+  is_active?: boolean;
+}
+
 export function ProductForm({ initialData, isEditing = false }: ProductFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -90,6 +142,8 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
     type?: string;
     value?: number;
   }>>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [brandsLoading, setBrandsLoading] = useState(false);
 
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [variantInput, setVariantInput] = useState<ProductVariant>({
@@ -103,6 +157,11 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
   });
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [hasVariants, setHasVariants] = useState(false);
+
+  // ---- Add New Brand dialog state
+  const [isBrandDialogOpen, setIsBrandDialogOpen] = useState(false);
+  const [newBrandName, setNewBrandName] = useState("");
+  const [savingBrand, setSavingBrand] = useState(false);
 
   // Smart Color Detection
   const colorMap: Record<string, string> = {
@@ -147,6 +206,7 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
     title: "",
     description: "",
     category: ["Women"],
+    brandId: "",
     originalPrice: "",
     salePrice: "",
     stock: "0",
@@ -159,6 +219,28 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
     isActive: true,
   });
 
+  // Fetch active brands on mount (admin + customer forms both use)
+  useEffect(() => {
+    const fetchBrands = async () => {
+      setBrandsLoading(true);
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("brands")
+          .select("id, name, slug, is_active")
+          .eq("is_active", true)
+          .order("display_order", { ascending: true })
+          .order("name", { ascending: true });
+        if (!error && data) setBrands(data as Brand[]);
+      } catch (e) {
+        console.warn("Brands table not ready yet — skip (run SQL migration + seed first):", e);
+      } finally {
+        setBrandsLoading(false);
+      }
+    };
+    void fetchBrands();
+  }, []);
+
   // Initialize form with data if editing
   useEffect(() => {
     if (initialData) {
@@ -166,6 +248,7 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
         title: initialData.title || "",
         description: initialData.description || "",
         category: Array.isArray(initialData.category) ? initialData.category : initialData.category ? [initialData.category] : ["Women"],
+        brandId: initialData.brand_id ?? "",
         originalPrice: initialData.original_price?.toString() || "",
         salePrice: initialData.sale_price?.toString() || initialData.price?.toString() || "",
         stock: initialData.stock?.toString() || "0",
@@ -180,15 +263,14 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
       setImages(initialData.images || (initialData.primary_image ? [initialData.primary_image, ...(initialData.gallery_images || [])] : []));
 
       // Load variants if they exist in initialData
-      if ((initialData as any).variants && (initialData as any).variants.length > 0) {
-        const loadedVariants = (initialData as any).variants.map((v: any) => ({
+      if (initialData.variants && initialData.variants.length > 0) {
+        const loadedVariants = initialData.variants.map((v) => ({
           ...v,
-          // Ensure we populate the state properties from attributes if available, or fallback to top-level
-          color: v.attributes?.color || v.name,
+          color: v.attributes?.color || v.name || "",
           size: v.attributes?.size || "",
           hex: v.attributes?.hex || v.hex || "#000000",
-          name: v.name // Keep original name
-        }));
+          name: v.name || `${v.attributes?.color ?? ""}${v.attributes?.size ? ` - ${v.attributes.size}` : ""}`,
+        } as ProductVariant));
         setVariants(loadedVariants);
         setHasVariants(true);
       }
@@ -438,6 +520,59 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
     });
   };
 
+  // ---- Save new brand to DB & immediately select it
+  const handleSaveNewBrand = async () => {
+    const name = newBrandName.trim();
+    if (!name) return;
+    setSavingBrand(true);
+    try {
+      const supabase = createClient();
+      const slug = name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+
+      // 1. Insert — rely on DB unique constraint.
+      const { data: inserted, error: insertError } = await supabase
+        .from("brands")
+        .insert({ name, slug, is_active: true })
+        .select("id, name, slug, is_active")
+        .maybeSingle();
+
+      if (insertError && !insertError.message?.includes("duplicate")) {
+        throw insertError;
+      }
+
+      if (inserted) {
+        setBrands(prev => [...prev, inserted as Brand]);
+        setFormData(prev => ({ ...prev, brandId: inserted.id }));
+        toast.success(`Brand "${name}" added`);
+      } else {
+        // Conflict: brand with this name already exists. Select it.
+        const { data: existing } = await supabase
+          .from("brands")
+          .select("id, name, slug, is_active")
+          .ilike("name", name)
+          .limit(1)
+          .maybeSingle();
+        if (existing) {
+          setBrands(prev => prev.find(b => b.id === existing.id) ? prev : [...prev, existing as Brand]);
+          setFormData(prev => ({ ...prev, brandId: existing.id }));
+          toast.success(`Brand "${name}" already exists — selected it`);
+        }
+      }
+
+      setNewBrandName("");
+      setIsBrandDialogOpen(false);
+    } catch (e: unknown) {
+      const err = e as { message?: string };
+      console.error("Error creating brand:", e);
+      toast.error(err?.message || "Failed to save brand");
+    } finally {
+      setSavingBrand(false);
+    }
+  };
+
   const calculateDiscount = () => {
     const original = parseFloat(formData.originalPrice);
     const sale = parseFloat(formData.salePrice);
@@ -497,14 +632,14 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
         slug: isEditing ? undefined : slug, // Don't update slug on edit to preserve SEO
         description: formData.description || null,
         category: formData.category,
+        brand_id: formData.brandId || null,
         tags: formData.tags,
         original_price: originalPrice || salePrice,
         sale_price: salePrice,
         price: salePrice,
         stock: parseInt(formData.stock) || 0,
-        sku: formData.sku?.trim() || null, // Ensure empty string becomes null
+        sku: formData.sku?.trim() || null,
         images: images,
-        // Removed legacy fields to avoid schema cache errors
         promotion_id: formData.promotionId || null,
         seo_meta: {
           title: formData.metaTitle || formData.title,
@@ -674,36 +809,150 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="category">Category *</Label>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="w-full justify-between font-normal">
-                      {Array.isArray(formData.category) && formData.category.length > 0 ? formData.category.join(", ") : "Select Categories"}
-                      <ChevronDown className="h-4 w-4 opacity-50" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-[200px]">
-                    {["Women", "Men", "Kids", "Accessories", "Gadgets"].map((cat) => (
-                      <DropdownMenuCheckboxItem
-                        key={cat}
-                        checked={Array.isArray(formData.category) && formData.category.includes(cat)}
-                        onCheckedChange={(checked) => {
-                          setFormData(prev => {
-                            const newCategories = checked
-                              ? [...prev.category, cat]
-                              : prev.category.filter(c => c !== cat);
-                            return { ...prev, category: newCategories };
-                          });
-                        }}
-                      >
-                        {cat}
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+              <div className="space-y-2 md:col-span-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="category">
+                    Categories * <span className="text-xs text-text-secondary font-normal">(select multiple)</span>
+                  </Label>
+                  <span className="text-[11px] text-text-secondary">
+                    Best practice: 1 Audience + 1 Product Type + (optional) Shoe Style + Style/Occasion
+                  </span>
+                </div>
+                <div className="border rounded-lg p-4 space-y-4 bg-muted/10">
+                  {Object.entries(CATEGORY_GROUPS).map(([groupName, options]) => (
+                    <div key={groupName}>
+                      <p className="text-[11px] uppercase tracking-wider font-semibold text-text-muted mb-2">
+                        {groupName}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {options.map((cat) => {
+                          const checked = Array.isArray(formData.category) && formData.category.includes(cat);
+                          return (
+                            <button
+                              type="button"
+                              key={cat}
+                              onClick={() =>
+                                setFormData((prev) => {
+                                  const has = prev.category.includes(cat);
+                                  return {
+                                    ...prev,
+                                    category: has
+                                      ? prev.category.filter((c) => c !== cat)
+                                      : [...prev.category, cat],
+                                  };
+                                })
+                              }
+                              className={
+                                "px-3 py-1.5 rounded-full text-xs sm:text-sm border transition-colors " +
+                                (checked
+                                  ? "bg-primary text-white border-primary shadow-sm"
+                                  : "bg-background text-text-secondary border-border-light hover:border-primary hover:text-primary")
+                              }
+                            >
+                              {cat}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="pt-2 border-t border-border-light/60">
+                    <p className="text-xs text-text-secondary">
+                      Selected:{" "}
+                      <span className="font-medium text-text-primary">
+                        {formData.category.length > 0 ? formData.category.join(", ") : "none"}
+                      </span>
+                    </p>
+                  </div>
+                </div>
               </div>
 
+              <div className="space-y-2 md:col-span-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="brand">
+                    Brand <span className="text-xs text-text-secondary font-normal">(optional)</span>
+                  </Label>
+                  <button
+                    type="button"
+                    onClick={() => setIsBrandDialogOpen(true)}
+                    className="text-xs text-primary hover:text-primary/80 font-medium flex items-center gap-1"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add New Brand
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <select
+                    id="brand"
+                    className="flex h-10 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={formData.brandId}
+                    onChange={(e) => setFormData({ ...formData, brandId: e.target.value })}
+                    disabled={brandsLoading}
+                  >
+                    <option value="">No brand</option>
+                    {brands.length === 0 && !brandsLoading && (
+                      <option value="" disabled>
+                        — No brands yet. Click "Add New Brand" above. —
+                      </option>
+                    )}
+                    {brands.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                  {brandsLoading && (
+                    <div className="h-10 w-10 flex items-center justify-center">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <Dialog open={isBrandDialogOpen} onOpenChange={setIsBrandDialogOpen}>
+                <DialogContent className="sm:max-w-[420px]">
+                  <DialogHeader>
+                    <DialogTitle>Add New Brand</DialogTitle>
+                    <DialogDescription>
+                      Create a new brand (Piccadilly, Clarks, American Eagle, M&S, etc.). Saved globally — immediately available in the selector above.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3 mt-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="newBrandName">Brand name *</Label>
+                      <Input
+                        id="newBrandName"
+                        autoFocus
+                        placeholder="e.g. Clarks"
+                        value={newBrandName}
+                        onChange={(e) => setNewBrandName(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && void handleSaveNewBrand()}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter className="mt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setIsBrandDialogOpen(false);
+                        setNewBrandName("");
+                      }}
+                      disabled={savingBrand}
+                    >
+                      Cancel
+                    </Button>
+                    <Button onClick={() => void handleSaveNewBrand()} disabled={savingBrand || !newBrandName.trim()}>
+                      {savingBrand ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        "Save Brand"
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </CardContent>
         </Card>
