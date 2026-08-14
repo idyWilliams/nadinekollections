@@ -13,8 +13,9 @@ interface ProductFiltersProps {
   activeCategory: string;
 }
 
-// Replicated category group taxonomy from ProductForm — customer-facing.
-const CATEGORY_GROUPS: Record<string, string[]> = {
+// Hardcoded fallback: replicated from ProductForm, used ONLY if the
+// `categories` table is missing or returns empty.
+const FALLBACK_CATEGORY_GROUPS: Record<string, string[]> = {
   Audience: ["Women", "Men", "Kids", "Teens", "Girls", "Boys"],
   "Product Type": [
     "Clothing",
@@ -63,12 +64,52 @@ const CATEGORY_GROUPS: Record<string, string[]> = {
   Niche: ["Aviation", "Aviation Pins"],
 };
 
-const ALL_CATEGORIES_FLAT = Object.values(CATEGORY_GROUPS).flat();
-
 interface Brand {
   id: string;
   name: string;
   slug?: string;
+}
+
+type DbCategoryRow = {
+  name: string;
+  group_name: string;
+  is_active?: boolean;
+  display_order?: number;
+};
+
+function buildGroupsFromDB(rows: DbCategoryRow[]): Record<string, string[]> {
+  const GROUP_PREF_ORDER = [
+    "Audience",
+    "Product Type",
+    "Shoe Styles",
+    "Style / Occasion",
+    "Niche",
+    "Style/Occasion",
+  ];
+  const groups: Record<string, string[]> = {};
+  const orderedKeys: string[] = [];
+  for (const g of GROUP_PREF_ORDER) {
+    if (!groups[g]) { groups[g] = []; orderedKeys.push(g); }
+  }
+  const orderMap: Record<string, number> = {};
+  for (const r of rows) {
+    if (r.is_active === false) continue;
+    orderMap[r.name] = r.display_order ?? 9999;
+    const k = r.group_name || "Product Type";
+    if (!groups[k]) { groups[k] = []; orderedKeys.push(k); }
+    groups[k].push(r.name);
+  }
+  for (const k of Object.keys(groups)) {
+    groups[k] = groups[k].sort((a, b) => {
+      const oa = orderMap[a] ?? 9999;
+      const ob = orderMap[b] ?? 9999;
+      if (oa !== ob) return oa - ob;
+      return a.localeCompare(b);
+    });
+  }
+  const cleaned: Record<string, string[]> = {};
+  for (const k of orderedKeys) if (groups[k] && groups[k].length > 0) cleaned[k] = groups[k];
+  return cleaned;
 }
 
 const SORT_OPTIONS = [
@@ -88,6 +129,7 @@ type FilterContentProps = {
   maxPrice: string;
   sort: string;
   brands: Brand[];
+  categoryGroups: Record<string, string[]>;
   toggleCategory: (c: string) => void;
   toggleBrand: (id: string) => void;
   setMinPrice: (v: string) => void;
@@ -110,6 +152,7 @@ function FilterContent(props: FilterContentProps) {
     maxPrice,
     sort,
     brands,
+    categoryGroups,
     toggleCategory,
     toggleBrand,
     setMinPrice,
@@ -178,7 +221,7 @@ function FilterContent(props: FilterContentProps) {
         </div>
 
         <div className="space-y-2">
-          {Object.entries(CATEGORY_GROUPS).map(([groupName, options]) => {
+          {Object.entries(categoryGroups).map(([groupName, options]) => {
             // For a dedicated category page (/shop/women etc), skip the audience
             // group containing the active category already — focus on refinement.
             const isAudience = groupName === "Audience";
@@ -377,6 +420,7 @@ export function ProductFilters({
 
   const [isOpen, setIsOpen] = useState(false);
   const [brands, setBrands] = useState<Brand[]>([]);
+  const [dbCategoryGroups, setDbCategoryGroups] = useState<Record<string, string[]> | null>(null);
 
   // --- Local UI state for checkboxes/inputs (applied on click / blur) ---
   const initialCats = useMemo(() => {
@@ -435,28 +479,51 @@ export function ProductFilters({
     setSelectedBrands(initialBrands);
   }, [initialBrands]);
 
-  // Fetch brands
+  // Fetch brands + categories from DB in parallel
   useEffect(() => {
     let cancelled = false;
-    const fetchBrands = async () => {
+    const fetchAll = async () => {
       try {
         const supabase = createClient();
-        const { data } = await supabase
+        // Parallel: brands + categories
+        const brandsPromise = supabase
           .from("brands")
           .select("id, name, slug")
           .eq("is_active", true)
           .order("display_order", { ascending: true })
           .order("name", { ascending: true });
-        if (!cancelled && data) setBrands(data as Brand[]);
+
+        const categoriesPromise = supabase
+          .from("categories")
+          .select("name, group_name, is_active, display_order")
+          .eq("is_active", true)
+          .order("group_name", { ascending: true })
+          .order("display_order", { ascending: true })
+          .order("name", { ascending: true });
+
+        const [brandsRes, catsRes] = await Promise.all([brandsPromise, categoriesPromise]);
+
+        if (cancelled) return;
+        if (!brandsRes.error && brandsRes.data) setBrands(brandsRes.data as Brand[]);
+
+        // If categories table exists and returned rows, use DB. Otherwise null = fallback.
+        if (!catsRes.error && catsRes.data && catsRes.data.length > 0) {
+          setDbCategoryGroups(buildGroupsFromDB(catsRes.data as DbCategoryRow[]));
+        } else {
+          setDbCategoryGroups(null);
+        }
       } catch (e) {
-        // brands table may not exist yet — silent
+        // Brands or categories table may not exist yet — silent fallback
+        setDbCategoryGroups(null);
       }
     };
-    void fetchBrands();
-    return () => {
-      cancelled = true;
-    };
+    void fetchAll();
+    return () => { cancelled = true; };
   }, []);
+
+  const effectiveCategoryGroups = dbCategoryGroups && Object.keys(dbCategoryGroups).length > 0
+    ? dbCategoryGroups
+    : FALLBACK_CATEGORY_GROUPS;
 
   const buildUrl = () => {
     const params = new URLSearchParams(searchParams.toString());
@@ -591,6 +658,7 @@ export function ProductFilters({
     maxPrice,
     sort,
     brands,
+    categoryGroups: effectiveCategoryGroups,
     toggleCategory,
     toggleBrand,
     setMinPrice,
