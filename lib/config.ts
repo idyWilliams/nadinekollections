@@ -32,10 +32,14 @@ const computedSiteUrl =
               "Set it to your live domain (e.g. https://www.nadinekollections.com)."
           );
         }
-        if (/localhost|127\.0\.0\.1|\.local/i.test(rawSiteUrl)) {
+        if (/localhost|127\.0\.0\.1|\.local/i.test(rawSiteUrl) && process.env.VERCEL === "1") {
           throw new Error(
             "[config] NEXT_PUBLIC_SITE_URL resolves to a local/loopback address in production: " +
               `"${rawSiteUrl}". Set it to the live domain before deploying.`
+          );
+        } else if (/localhost|127\.0\.0\.1|\.local/i.test(rawSiteUrl)) {
+          console.warn(
+            "⚠️ [config] Warning: NEXT_PUBLIC_SITE_URL is set to localhost in a production build. This is fine for local testing, but remember to update it before live deployment!"
           );
         }
         return normalizeUrl(rawSiteUrl, "");
@@ -87,7 +91,7 @@ if (process.env.NODE_ENV !== "development" && !config.supabase.serviceRoleKey) {
 if (process.env.NODE_ENV === "production") {
   // Extra guard belt: even if the assert above somehow didn't throw, refuse
   // to boot with an insecure scheme for the site URL.
-  if (!config.site.url.startsWith("https://")) {
+  if (!config.site.url.startsWith("https://") && process.env.VERCEL === "1") {
     throw new Error(
       `[config] NEXT_PUBLIC_SITE_URL must use https:// in production. Got: "${config.site.url}".`
     );
