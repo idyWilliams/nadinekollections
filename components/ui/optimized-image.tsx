@@ -49,7 +49,7 @@ export function OptimizedImage({
   }
 
   const effectiveLoading = priority ? "eager" : loading ?? "lazy";
-  const effectiveQuality = quality ?? 80;
+  const effectiveQuality = quality ?? 75;
 
   return (
     <div
