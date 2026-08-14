@@ -17,6 +17,20 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Brands Table (dynamic — admin manages via ProductForm)
+CREATE TABLE IF NOT EXISTS public.brands (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  slug TEXT NOT NULL UNIQUE,
+  logo_url TEXT,
+  description TEXT,
+  website TEXT,
+  is_active BOOLEAN DEFAULT true,
+  display_order INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Products Table
 CREATE TABLE IF NOT EXISTS public.products (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -27,6 +41,7 @@ CREATE TABLE IF NOT EXISTS public.products (
   sale_price NUMERIC(10, 2),
   cost_price NUMERIC(10, 2), -- For admin analytics
   category TEXT[] DEFAULT '{}', -- Array of categories
+  brand_id UUID REFERENCES public.brands(id) ON DELETE SET NULL,
   primary_image TEXT,
   images TEXT[] DEFAULT '{}',
   stock INTEGER DEFAULT 0, -- Inventory stock count
@@ -36,6 +51,7 @@ CREATE TABLE IF NOT EXISTS public.products (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+CREATE INDEX IF NOT EXISTS idx_products_brand_id ON public.products(brand_id);
 
 -- Product Variants (for sizes, colors, inventory)
 CREATE TABLE IF NOT EXISTS public.product_variants (
