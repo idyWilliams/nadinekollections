@@ -65,7 +65,7 @@ export default async function CategoryPage({
 
     let query = supabase
       .from("products")
-      .select("*, variants:product_variants(*)", { count: "exact" })
+      .select("*, brand:brands(id, name, slug), variants:product_variants(*)", { count: "exact" })
       .eq("is_active", true);
 
     // 1. Top-level route filter (e.g. /shop/women -> Women)

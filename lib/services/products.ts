@@ -9,9 +9,12 @@ export interface Product {
   sale_price: number | null;
   cost_price: number | null;
   category: string[];
+  brand_id: string | null;
+  brand?: { id: string; name: string; slug?: string } | null;
   primary_image: string | null;
   images: string[];
   stock: number;
+  sku?: string | null;
   is_featured: boolean;
   is_new: boolean;
   is_active: boolean;
@@ -49,6 +52,7 @@ export async function getFeaturedProducts(limit = 8): Promise<Product[]> {
       .from("products")
       .select(`
         *,
+        brand:brands(id, name, slug),
         variants:product_variants(*)
       `)
       .eq("is_featured", true)
@@ -86,6 +90,7 @@ export async function getRelatedProducts(
       .from("products")
       .select(`
         *,
+        brand:brands(id, name, slug),
         variants:product_variants(*)
       `)
       .contains("category", categoryArray)
@@ -116,6 +121,7 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
       .from("products")
       .select(`
         *,
+        brand:brands(id, name, slug),
         variants:product_variants(*)
       `)
       .eq("slug", slug)
@@ -159,7 +165,7 @@ export async function getProductsByCategory(
 
     let query = supabase
       .from("products")
-      .select("*, variants:product_variants(*)", { count: "exact" })
+      .select("*, brand:brands(id, name, slug), variants:product_variants(*)", { count: "exact" })
       .eq("is_active", true)
       .range(from, to)
       .order("created_at", { ascending: false });
