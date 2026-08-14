@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ShoppingBag, Search, User as UserIcon, Menu, LogOut, Heart, Sparkles } from "lucide-react";
+import { ShoppingBag, Search, User as UserIcon, Menu, LogOut, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, Suspense, lazy } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -225,13 +225,6 @@ export function Header() {
           </Link>
           <Link href="/shop" className="text-sm font-medium hover:text-primary transition-colors">
             Shop
-          </Link>
-          <Link href="/about" className="text-sm font-medium hover:text-primary transition-colors">
-            About
-          </Link>
-          <Link href="/studio" className="group flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-primary-foreground text-sm font-medium shadow-glow hover:shadow-lg hover:scale-105 transition-all duration-300">
-            <Sparkles className="h-3.5 w-3.5 transition-transform group-hover:rotate-12" />
-            <span>Virtual Studio</span>
           </Link>
           <Link href="/shop/men" className="text-sm font-medium hover:text-primary transition-colors">
             Men

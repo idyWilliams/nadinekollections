@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { OptimizedImage } from "@/components/ui/optimized-image";
@@ -79,6 +80,23 @@ export function HeroBanner({ initialBanners = [] }: HeroBannerProps) {
 
   return (
     <div className="relative h-[500px] w-full overflow-hidden md:h-[70vh] md:max-h-[800px]">
+      {/* Prewarm: render all banner images off-screen so Next.js caches them */}
+      <div aria-hidden="true" className="absolute -z-10 opacity-0 pointer-events-none h-0 w-0 overflow-hidden">
+        {banners.map((b, i) => (
+          <Image
+            key={`prewarm-${b.id}`}
+            src={b.image_url}
+            alt=""
+            width={1920}
+            height={1080}
+            priority={i < 2}
+            loading={i < 2 ? "eager" : "lazy"}
+            fetchPriority={i === 0 ? "high" : i === 1 ? "high" : "low"}
+            className="h-0 w-0"
+          />
+        ))}
+      </div>
+
       <AnimatePresence mode="wait">
         <motion.div
           key={current}
@@ -93,9 +111,10 @@ export function HeroBanner({ initialBanners = [] }: HeroBannerProps) {
             alt={banners[current].title || "Banner"}
             fill
             className="object-cover"
-            priority={current === 0}
-            loading={current === 0 ? "eager" : "lazy"}
+            priority={current <= 1}
+            loading={current <= 1 ? "eager" : "lazy"}
             sizes="100vw"
+            showSkeleton={true}
           />
 
           <div className="absolute inset-0 bg-black/20" />
@@ -106,7 +125,7 @@ export function HeroBanner({ initialBanners = [] }: HeroBannerProps) {
                 <motion.p
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.15 }}
+                  transition={{ delay: 0.1 }}
                   className="mb-3 md:mb-4 text-base md:text-lg font-medium uppercase tracking-widest text-white/95"
                 >
                   {banners[current].subtitle}
@@ -116,7 +135,7 @@ export function HeroBanner({ initialBanners = [] }: HeroBannerProps) {
                 <motion.h1
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.25 }}
+                  transition={{ delay: 0.2 }}
                   className="mb-6 md:mb-8 text-3xl sm:text-4xl font-bold md:text-6xl lg:text-7xl text-white drop-shadow-lg"
                 >
                   {banners[current].title}
@@ -126,7 +145,7 @@ export function HeroBanner({ initialBanners = [] }: HeroBannerProps) {
                 <motion.div
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.35 }}
+                  transition={{ delay: 0.3 }}
                 >
                   <Link href={banners[current].cta_link || "#"}>
                     <Button size="lg" className="shadow-lg">

@@ -2,6 +2,11 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  // Hide Virtual Studio: redirect any /studio requests to homepage
+  if (request.nextUrl.pathname.startsWith('/studio')) {
+    return NextResponse.redirect(new URL('/', request.url))
+  }
+
   let response = NextResponse.next({
     request: {
       headers: request.headers,
