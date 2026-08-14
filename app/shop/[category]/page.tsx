@@ -2,13 +2,20 @@ import { createPublicClient } from "@/lib/supabase/server";
 import { ProductCard } from "@/components/customer/ProductCard";
 
 import { Pagination } from "@/components/shared/Pagination";
-
-// Helper to capitalize category for display/query
-const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-
 import { ProductFilters } from "@/components/customer/ProductFilters";
 
-// ... (imports remain the same, ensure ProductFilters is imported)
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+function parseCsvParam(
+  raw: string | string[] | undefined
+): string[] {
+  if (!raw) return [];
+  const str = Array.isArray(raw) ? raw[0] : raw;
+  return str
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 export default async function CategoryPage({
   params,
@@ -18,14 +25,33 @@ export default async function CategoryPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { category } = await params;
-  const { type, page, q } = await searchParams;
-  const categoryName = capitalize(category);
-  const isShoesFilter = type === 'shoes';
-  const searchQuery = typeof q === 'string' ? q : '';
+  const sp = await searchParams;
+  const pageParam = sp.page;
+  const qParam = sp.q;
+  const categoriesParam = sp.categories;
+  const brandsParam = sp.brands;
+  const minPriceParam = sp.minPrice;
+  const maxPriceParam = sp.maxPrice;
+  const sortParam = sp.sort;
+  const typeParam = sp.type; // legacy fallback
 
-  // ... (data fetching logic remains the same)
-  // Pagination Config
-  const currentPage = Number(page) || 1;
+  const categoryName = capitalize(category);
+  const searchQuery = typeof qParam === "string" ? qParam : "";
+
+  const refinedCategories = parseCsvParam(categoriesParam);
+  const refinedBrands = parseCsvParam(brandsParam);
+  const minPrice =
+    typeof minPriceParam === "string" && minPriceParam !== ""
+      ? Number(minPriceParam)
+      : null;
+  const maxPrice =
+    typeof maxPriceParam === "string" && maxPriceParam !== ""
+      ? Number(maxPriceParam)
+      : null;
+  const sort = typeof sortParam === "string" ? sortParam : "newest";
+
+  const currentPage =
+    typeof pageParam === "string" ? Number(pageParam) || 1 : 1;
   const itemsPerPage = 12;
   const from = (currentPage - 1) * itemsPerPage;
   const to = from + itemsPerPage - 1;
@@ -35,30 +61,65 @@ export default async function CategoryPage({
   let error = null;
 
   try {
-    // Public catalog listing: no user session needed, so we use the
-    // cookie-free createPublicClient.  This keeps the page static-
-    // generation-friendly (Next.js can prerender "all" /shop/all) and
-    // avoids DYNAMIC_SERVER_USAGE errors for purely-static routes.
     const supabase = createPublicClient();
 
-    // Fetch products for this category
     let query = supabase
       .from("products")
       .select("*, variants:product_variants(*)", { count: "exact" })
-      .eq("is_active", true)
-      .range(from, to);
+      .eq("is_active", true);
 
+    // 1. Top-level route filter (e.g. /shop/women -> Women)
     if (category.toLowerCase() !== "all") {
       query = query.contains("category", [categoryName]);
     }
 
-    if (isShoesFilter) {
+    // 2. Legacy type=shoes support (footer/bookmark backward compat)
+    if (typeParam === "shoes") {
       query = query.contains("category", ["Shoes"]);
     }
 
-    if (searchQuery) {
-      query = query.ilike('title', `%${searchQuery}%`);
+    // 3. Multi-category refinement (AND: product must have EVERY tag)
+    if (refinedCategories.length > 0) {
+      query = query.contains("category", refinedCategories);
     }
+
+    // 4. Brand filter
+    if (refinedBrands.length > 0) {
+      query = query.in("brand_id", refinedBrands);
+    }
+
+    // 5. Price range
+    if (minPrice !== null && !isNaN(minPrice)) {
+      query = query.gte("sale_price", minPrice);
+    }
+    if (maxPrice !== null && !isNaN(maxPrice)) {
+      query = query.lte("sale_price", maxPrice);
+    }
+
+    // 6. Keyword search
+    if (searchQuery) {
+      query = query.ilike("title", `%${searchQuery}%`);
+    }
+
+    // 7. Sort (before range, since range wraps order)
+    switch (sort) {
+      case "price-asc":
+        query = query.order("sale_price", { ascending: true });
+        break;
+      case "price-desc":
+        query = query.order("sale_price", { ascending: false });
+        break;
+      case "name-asc":
+        query = query.order("title", { ascending: true });
+        break;
+      case "newest":
+      default:
+        query = query.order("created_at", { ascending: false });
+        break;
+    }
+
+    // Stable secondary order so results stay deterministic across pages
+    query = query.order("id", { ascending: true }).range(from, to);
 
     const result = await query;
 
@@ -74,7 +135,6 @@ export default async function CategoryPage({
     console.error("Error fetching products:", error);
   }
 
-  // Calculate pagination
   const totalPages = Math.ceil(count / itemsPerPage);
 
 
@@ -95,7 +155,6 @@ export default async function CategoryPage({
             categoryName={categoryName}
             totalItems={count}
             activeCategory={category}
-            activeType={type as string}
           />
 
           {/* Product Grid */}
