@@ -145,6 +145,98 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
   const [brands, setBrands] = useState<Brand[]>([]);
   const [brandsLoading, setBrandsLoading] = useState(false);
 
+  // ---- Dynamic categories from DB (Admin > Categories panel).
+  //      If the `categories` table is missing or empty, fall back to the
+  //      hardcoded defaults bundled with the component so the form still works.
+  interface DynamicCategory {
+    name: string;
+    group_name: string;
+    is_top_level?: boolean;
+    is_active?: boolean;
+    display_order?: number;
+  }
+  const [dynamicCategories, setDynamicCategories] = useState<DynamicCategory[] | null>(null);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+
+  // Resolved category pickers (use DB if available, otherwise hardcoded fallback)
+  const effectiveALL_CATEGORIES: string[] = (() => {
+    if (dynamicCategories && dynamicCategories.length > 0) {
+      return Array.from(new Set(dynamicCategories.filter(c => c.is_active !== false).map(c => c.name)));
+    }
+    return ALL_CATEGORIES;
+  })();
+
+  const effectiveCATEGORY_GROUPS: Record<string, string[]> = (() => {
+    if (dynamicCategories && dynamicCategories.length > 0) {
+      const groups: Record<string, string[]> = {};
+      // stable group order = GROUP_CHOICES-first, then any extras found
+      const GROUP_CHOICES = ["Audience", "Product Type", "Shoe Styles", "Style / Occasion", "Niche", "Style/Occasion"];
+      const ordered: string[] = [];
+      for (const g of GROUP_CHOICES) if (groups[g] === undefined) { groups[g] = []; ordered.push(g); }
+      for (const c of dynamicCategories) {
+        if (c.is_active === false) continue;
+        const key = c.group_name || "Product Type";
+        if (groups[key] === undefined) { groups[key] = []; ordered.push(key); }
+        groups[key].push(c.name);
+      }
+      // sort each group by display_order then name
+      const orderMap: Record<string, number> = Object.fromEntries(
+        dynamicCategories.filter(c => !c.is_active || c.is_active === true).map(c => [c.name, c.display_order ?? 9999])
+      );
+      for (const k of Object.keys(groups)) {
+        groups[k] = groups[k].sort((a, b) => {
+          const oa = orderMap[a] ?? 9999;
+          const ob = orderMap[b] ?? 9999;
+          if (oa !== ob) return oa - ob;
+          return a.localeCompare(b);
+        });
+      }
+      // Remove empty groups that only existed from GROUP_CHOICES scaffolding
+      const cleaned: Record<string, string[]> = {};
+      for (const k of ordered) if (groups[k] && groups[k].length > 0) cleaned[k] = groups[k];
+      return cleaned;
+    }
+    return CATEGORY_GROUPS;
+  })();
+
+  const effectiveTOP_LEVEL_CATEGORIES: string[] = (() => {
+    if (dynamicCategories && dynamicCategories.length > 0) {
+      const flagged = dynamicCategories
+        .filter(c => c.is_active !== false && c.is_top_level === true)
+        .sort((a, b) => (a.display_order ?? 9999) - (b.display_order ?? 9999))
+        .map(c => c.name);
+      if (flagged.length > 0) return flagged;
+    }
+    return TOP_LEVEL_CATEGORIES;
+  })();
+
+  // Fetch dynamic categories from the categories table
+  useEffect(() => {
+    let cancelled = false;
+    const fetchCategories = async () => {
+      setCategoriesLoading(true);
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("categories")
+          .select("name, group_name, is_top_level, is_active, display_order")
+          .order("group_name", { ascending: true })
+          .order("display_order", { ascending: true })
+          .order("name", { ascending: true });
+        if (cancelled) return;
+        if (error) throw error;
+        setDynamicCategories((data as DynamicCategory[]) || null);
+      } catch (e) {
+        // categories table may not exist yet — fall back to hardcoded (null triggers fallback)
+        setDynamicCategories(null);
+      } finally {
+        if (!cancelled) setCategoriesLoading(false);
+      }
+    };
+    void fetchCategories();
+    return () => { cancelled = true; };
+  }, []);
+
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [variantInput, setVariantInput] = useState<ProductVariant>({
     name: "",
@@ -811,15 +903,31 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2 md:col-span-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="category">
-                    Categories * <span className="text-xs text-text-secondary font-normal">(select multiple)</span>
-                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="category">
+                      Categories * <span className="text-xs text-text-secondary font-normal">(select multiple)</span>
+                    </Label>
+                    {categoriesLoading ? (
+                      <Badge variant="outline" className="text-[10px] px-2 py-0.5 text-text-muted">
+                        <Loader2 className="h-3 w-3 inline mr-1 animate-spin" />Syncing…
+                      </Badge>
+                    ) : dynamicCategories && dynamicCategories.length > 0 ? (
+                      <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-primary/10 text-primary border-primary/30">
+                        <Tag className="h-3 w-3 inline mr-1" />
+                        Admin-managed ({dynamicCategories.filter(c => c.is_active !== false).length} tags)
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-amber-50 text-amber-700 border-amber-300">
+                        Hardcoded fallback — run migration 002 to unlock Admin panel
+                      </Badge>
+                    )}
+                  </div>
                   <span className="text-[11px] text-text-secondary">
                     Best practice: 1 Audience + 1 Product Type + (optional) Shoe Style + Style/Occasion
                   </span>
                 </div>
                 <div className="border rounded-lg p-4 space-y-4 bg-muted/10">
-                  {Object.entries(CATEGORY_GROUPS).map(([groupName, options]) => (
+                  {Object.entries(effectiveCATEGORY_GROUPS).map(([groupName, options]) => (
                     <div key={groupName}>
                       <p className="text-[11px] uppercase tracking-wider font-semibold text-text-muted mb-2">
                         {groupName}
