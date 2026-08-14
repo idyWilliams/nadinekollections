@@ -1,7 +1,6 @@
 import { HeroBanner } from "@/components/customer/HeroBanner";
 import { ProductCard } from "@/components/customer/ProductCard";
 import { RecentlyViewedSection } from "@/components/customer/RecentlyViewedSection";
-import { Button } from "@/components/ui/button";
 import { OptimizedImage } from "@/components/ui/optimized-image";
 
 import Link from "next/link";
@@ -21,50 +20,26 @@ export default async function Home() {
     {
       name: "Women",
       image:
-        "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=elegant%20nude%20corporate%20pump%20heels%20shoes%20comfortable%20attractive%20luxury%20fashion%20product%20photography%20soft%20lighting&image_size=landscape_4_3",
+        "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=1200&q=75",
       link: "/shop/women",
     },
     {
       name: "Men",
       image:
-        "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=handsome%20mature%20african%20man%20well%20dressed%20clean%20smart%20casual%20fashion%20professional%20portrait%20studio%20lighting&image_size=landscape_4_3",
+        "https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?auto=format&fit=crop&w=1200&q=75",
       link: "/shop/men",
     },
     {
-      name: "Shoes",
+      name: "Kids & Teens",
       image:
-        "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=luxury%20collection%20of%20mens%20womens%20shoes%20heels%20pumps%20loafers%20sneakers%20flats%20premium%20fashion%20display&image_size=landscape_4_3",
-      link: "/shop/all?categories=Shoes",
-    },
-    {
-      name: "Wigs",
-      image:
-        "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=beautiful%20african%20woman%20with%20long%20luxurious%20hair%20wig%20all%20colors%20straight%20curly%20waves%20fashion%20beauty&image_size=landscape_4_3",
-      link: "/shop/all?categories=Wigs",
-    },
-    {
-      name: "Bags",
-      image:
-        "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=elegant%20luxury%20handbags%20purses%20leather%20bags%20collection%20premium%20fashion%20accessories%20display&image_size=landscape_4_3",
-      link: "/shop/all?categories=Bags",
-    },
-    {
-      name: "Kids",
-      image:
-        "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=cute%20happy%20african%20kids%20children%20colorful%20fashion%20clothes%20shoes%20bags%20smiling%20studio&image_size=landscape_4_3",
+        "https://images.unsplash.com/photo-1503944583220-79d8926ad5e2?auto=format&fit=crop&w=1200&q=75",
       link: "/shop/kids",
     },
     {
-      name: "Teens",
+      name: "Accessories",
       image:
-        "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=stylish%20african%20teenagers%20teens%20fashion%20casual%20wear%20trendy%20outfits%20youth%20style&image_size=landscape_4_3",
-      link: "/shop/all?categories=Teens",
-    },
-    {
-      name: "Gadgets",
-      image:
-        "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=tech%20gadgets%20phone%20holders%20cameras%20dashcams%20ring%20lights%20makeup%20boxes%20modern%20products%20flat%20lay&image_size=landscape_4_3",
-      link: "/shop/gadgets",
+        "https://images.unsplash.com/photo-1611923134239-b9be5816c4b3?auto=format&fit=crop&w=1200&q=75",
+      link: "/shop/accessories",
     },
   ];
 
@@ -123,7 +98,7 @@ export default async function Home() {
         <section className="py-12 md:py-20 bg-surface">
           <div className="container mx-auto px-4 md:px-6">
             <h2 className="text-3xl font-bold mb-8 md:mb-12 text-center">Shop by Category</h2>
-            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
               {categories.map((cat) => (
                 <Link
                   key={cat.name}
@@ -150,26 +125,7 @@ export default async function Home() {
           </div>
         </section>
 
-        <RecentlyViewedSection
-          fallback={
-            <section className="py-12 md:py-20 container mx-auto px-4 md:px-6 text-center">
-              <div className="max-w-2xl mx-auto bg-primary/5 rounded-3xl p-8 md:p-12">
-                <h2 className="text-3xl font-bold mb-4">Join the Family</h2>
-                <p className="text-text-secondary mb-8">
-                  Subscribe to our newsletter and get 10% off your first order plus exclusive access to new arrivals.
-                </p>
-                <form className="flex flex-col sm:flex-row gap-4 max-w-md mx-auto">
-                  <input
-                    type="email"
-                    placeholder="Enter your email"
-                    className="flex-1 rounded-lg border border-border-light px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                  <Button className="w-full sm:w-auto">Subscribe</Button>
-                </form>
-              </div>
-            </section>
-          }
-        />
+        <RecentlyViewedSection />
       </main>
     </div>
   );

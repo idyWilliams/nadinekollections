@@ -7,7 +7,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 interface RecentlyViewedSectionProps {
-    fallback: React.ReactNode;
+    fallback?: React.ReactNode;
 }
 
 export function RecentlyViewedSection({ fallback }: RecentlyViewedSectionProps) {
@@ -15,7 +15,7 @@ export function RecentlyViewedSection({ fallback }: RecentlyViewedSectionProps) 
     const latestProducts = getLatestProducts(4);
 
     if (latestProducts.length === 0) {
-        return <>{fallback}</>;
+        return fallback ? <>{fallback}</> : null;
     }
 
     return (
