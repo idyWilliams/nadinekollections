@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { normaliseAuthError } from "@/lib/auth-errors";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -43,6 +44,23 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [rateLimitSeconds, setRateLimitSeconds] = useState(0);
+  const countdownRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => { if (countdownRef.current) clearInterval(countdownRef.current); };
+  }, []);
+
+  const startCountdown = (seconds: number) => {
+    setRateLimitSeconds(seconds);
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    countdownRef.current = setInterval(() => {
+      setRateLimitSeconds((s) => {
+        if (s <= 1) { clearInterval(countdownRef.current!); return 0; }
+        return s - 1;
+      });
+    }, 1000);
+  };
   const router = useRouter();
   const supabase = createClient();
 
@@ -58,6 +76,7 @@ export default function SignupPage() {
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (rateLimitSeconds > 0) return;
     setLoading(true);
     setError(null);
 
@@ -73,7 +92,9 @@ export default function SignupPage() {
     });
 
     if (error) {
-      setError(error.message);
+      const result = normaliseAuthError(error);
+      setError(result.message);
+      if (result.isRateLimit) startCountdown(result.retryAfterSeconds);
       setLoading(false);
     } else {
       router.push("/");
@@ -110,8 +131,17 @@ export default function SignupPage() {
         </div>
 
         {error && (
-          <div className="bg-error/10 text-error text-sm p-3 rounded-lg mb-6 border border-error/20">
+          <div className={`text-sm p-3 rounded-lg mb-6 border ${
+            rateLimitSeconds > 0
+              ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+              : "bg-error/10 text-error border-error/20"
+          }`}>
             {error}
+            {rateLimitSeconds > 0 && (
+              <span className="block mt-1 font-semibold">
+                Retry in {rateLimitSeconds}s…
+              </span>
+            )}
           </div>
         )}
 
@@ -230,10 +260,14 @@ export default function SignupPage() {
 
             <Button
               type="submit"
-              disabled={loading}
+              disabled={loading || rateLimitSeconds > 0}
               className="w-full shadow-glow py-6 text-lg font-semibold tracking-wide uppercase touch-manipulation"
             >
-              {loading ? "Creating Account…" : "Sign Up"}
+              {loading
+                ? "Creating Account…"
+                : rateLimitSeconds > 0
+                ? `Wait ${rateLimitSeconds}s`
+                : "Sign Up"}
             </Button>
           </form>
         </Form>

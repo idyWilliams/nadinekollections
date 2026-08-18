@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -19,7 +19,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Clock } from "lucide-react";
+import { normaliseAuthError } from "@/lib/auth-errors";
 
 const formSchema = z.object({
   email: z.string().email({
@@ -28,87 +29,105 @@ const formSchema = z.object({
   password: z.string().min(6, {
     message: "Password must be at least 6 characters.",
   }),
-  otp: z.string().optional(),
 });
 
 export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState<"credentials" | "otp">("credentials");
   const [showPassword, setShowPassword] = useState(false);
+  const [rateLimitSeconds, setRateLimitSeconds] = useState(0);
+  const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
   const supabase = createClient();
+
+  useEffect(() => {
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
+  }, []);
+
+  const startRateLimitCountdown = (seconds: number) => {
+    setRateLimitSeconds(seconds);
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    countdownRef.current = setInterval(() => {
+      setRateLimitSeconds((s) => {
+        if (s <= 1) { clearInterval(countdownRef.current!); return 0; }
+        return s - 1;
+      });
+    }, 1000);
+  };
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: "",
       password: "",
-      otp: "",
     },
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (rateLimitSeconds > 0) return;
     setLoading(true);
     setError(null);
 
-    if (step === "credentials") {
-      // Step 1: Verify Email/Password
+    try {
+      // Step 1: Attempt login using password
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: values.email,
         password: values.password,
       });
 
       if (signInError) {
-        setError(signInError.message);
+        const result = normaliseAuthError(signInError);
+        setError(result.message);
+        if (result.isRateLimit) startRateLimitCountdown(result.retryAfterSeconds);
         setLoading(false);
         return;
       }
 
-      // Check if user is admin
-      const { data: profile } = await supabase
+      // Step 2: Query user profile to verify role
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, is_active, deleted_at")
         .eq("id", data.user.id)
         .single();
 
-      if (profile?.role !== "admin") {
-        setError("Unauthorized access.");
+      if (profileError || !profile) {
+        setError("User profile not found.");
         await supabase.auth.signOut();
         setLoading(false);
         return;
       }
 
-      // Step 2: Send OTP
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email: values.email,
-        options: {
-          shouldCreateUser: false,
-        },
-      });
-
-      if (otpError) {
-        setError(otpError.message);
+      const allowedRoles = ["super_admin", "admin", "manager", "support"];
+      if (!allowedRoles.includes(profile.role) || !profile.is_active || profile.deleted_at !== null) {
+        setError("Access denied. You do not have permission to view the Admin Portal.");
+        await supabase.auth.signOut();
         setLoading(false);
-      } else {
-        setStep("otp");
-        setLoading(false);
+        return;
       }
-    } else {
-      // Step 3: Verify OTP
-      const { error: verifyError } = await supabase.auth.verifyOtp({
-        email: values.email,
-        token: values.otp || "",
-        type: "email",
-      });
 
-      if (verifyError) {
-        setError(verifyError.message);
-        setLoading(false);
-      } else {
-        router.push("/admin");
-        router.refresh();
-      }
+      // Step 3: Log login activity
+      await fetch("/api/admin/activities", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "login",
+          entityType: "user",
+          entityName: values.email,
+          details: "Admin logged in successfully via credentials",
+          path: "/admin/login",
+        }),
+      }).catch((e) => console.warn("Failed to log login activity:", e));
+
+      // Redirect to the canonical Admin Dashboard
+      router.push("/admin");
+      router.refresh();
+    } catch (err: any) {
+      console.error("Login unexpected error:", err);
+      setError(err?.message || "An unexpected error occurred during login.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -134,127 +153,94 @@ export default function AdminLoginPage() {
       <div className="w-full max-w-md bg-surface/95 backdrop-blur-md p-8 rounded-xl shadow-2xl border border-white/10 relative z-10 mx-4 my-8">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-primary mb-2">Admin Portal</h1>
-          <p className="text-text-secondary">
-            {step === "credentials" ? "Secure access only" : "Enter Security Code"}
-          </p>
+          <p className="text-text-secondary">Secure credentials login only</p>
         </div>
 
         {error && (
-          <div className="bg-error/10 text-error text-sm p-3 rounded-lg mb-6 border border-error/20">
-            {error}
+          <div className={`text-sm p-3 rounded-lg mb-6 border flex items-start gap-2 ${
+            rateLimitSeconds > 0
+              ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+              : "bg-error/10 text-error border-error/20"
+          }`}>
+            {rateLimitSeconds > 0 && <Clock className="h-4 w-4 mt-0.5 flex-shrink-0" />}
+            <span>
+              {error}
+              {rateLimitSeconds > 0 && (
+                <span className="block mt-1 font-semibold">Retry in {rateLimitSeconds}s…</span>
+              )}
+            </span>
           </div>
         )}
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-            {step === "credentials" ? (
-              <>
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-text-primary">Email Address</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="email"
-                          placeholder="admin@nadinekollections.com"
-                          autoComplete="email"
-                          className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-text-primary">Email Address</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="email"
+                      placeholder="admin@nadinekollections.com"
+                      autoComplete="email"
+                      className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-text-primary">Password</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Input
-                            type={showPassword ? "text" : "password"}
-                            placeholder="••••••••"
-                            autoComplete="current-password"
-                            className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary pr-11"
-                            {...field}
-                          />
-                          <button
-                            type="button"
-                            tabIndex={-1}
-                            aria-label={showPassword ? "Hide password" : "Show password"}
-                            onClick={() => setShowPassword((v) => !v)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-white transition-colors p-1 touch-manipulation"
-                          >
-                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </button>
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="text-right">
-                  <Link
-                    href="/auth/forgot-password"
-                    className="text-xs text-primary hover:text-primary/80 transition-colors"
-                  >
-                    Forgot Password?
-                  </Link>
-                </div>
-              </>
-            ) : (
-              <FormField
-                control={form.control}
-                name="otp"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-text-primary">One-Time Password (OTP)</FormLabel>
-                    <FormControl>
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-text-primary">Password</FormLabel>
+                  <FormControl>
+                    <div className="relative">
                       <Input
-                        placeholder="123456"
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary text-center text-2xl tracking-widest"
-                        maxLength={8}
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        autoComplete="current-password"
+                        className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary pr-11"
                         {...field}
                       />
-                    </FormControl>
-                    <p className="text-xs text-text-secondary mt-2">
-                      We sent a code to {form.getValues("email")}
-                    </p>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-white transition-colors p-1 touch-manipulation"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="text-right">
+              <Link
+                href="/auth/forgot-password"
+                className="text-xs text-primary hover:text-primary/80 transition-colors"
+              >
+                Forgot Password?
+              </Link>
+            </div>
 
             <Button
               type="submit"
-              disabled={loading}
+              disabled={loading || rateLimitSeconds > 0}
               className="w-full shadow-glow py-6 text-lg font-semibold tracking-wide uppercase touch-manipulation"
             >
-              {loading
-                ? "Processing…"
-                : step === "credentials"
-                ? "Verify Credentials"
-                : "Verify & Login"}
+              {loading ? "Verifying Credentials…" : "Verify & Login"}
             </Button>
-
-            {step === "otp" && (
-              <button
-                type="button"
-                onClick={() => setStep("credentials")}
-                className="w-full text-sm text-text-secondary hover:text-primary mt-2 touch-manipulation"
-              >
-                ← Go back
-              </button>
-            )}
           </form>
         </Form>
 

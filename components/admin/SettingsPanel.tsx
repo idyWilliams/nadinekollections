@@ -270,7 +270,17 @@ export function SettingsPanel() {
 
       const data = await response.json();
 
-      if (!response.ok) throw new Error(data.error);
+      if (!response.ok) {
+        const msg: string = data.error ?? "Failed to invite admin";
+        const lower = msg.toLowerCase();
+        const isRateLimit = lower.includes("rate limit") || lower.includes("too many") || response.status === 429;
+        if (isRateLimit) {
+          toast.error("Email rate limit reached. Please wait a minute before sending another invite.", { duration: 6000 });
+        } else {
+          toast.error(msg);
+        }
+        return;
+      }
 
       toast.success(data.message);
       setInviteEmail("");
@@ -294,7 +304,17 @@ export function SettingsPanel() {
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to resend invitation");
+      if (!response.ok) {
+        const msg: string = data.error ?? "Failed to resend invitation";
+        const lower = msg.toLowerCase();
+        const isRateLimit = lower.includes("rate limit") || lower.includes("too many") || response.status === 429;
+        if (isRateLimit) {
+          toast.error("Email rate limit reached. Please wait a minute before resending.", { duration: 6000 });
+        } else {
+          toast.error(msg);
+        }
+        return;
+      }
 
       toast.success(data.message || "Invitation re-sent successfully");
       fetchAdmins();

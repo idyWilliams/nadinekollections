@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Package,
@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/client";
+import { useState } from "react";
 
 const sidebarLinks = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
@@ -33,6 +35,41 @@ interface AdminSidebarProps {
 
 export function AdminSidebar({ onClose }: AdminSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const supabase = createClient();
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      // 1. Log the logout activity
+      await fetch("/api/admin/activities", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "logout",
+          entityType: "user",
+          entityName: "Admin",
+          details: "Admin logged out successfully",
+          path: pathname,
+        }),
+      }).catch((e) => console.warn("Failed to log logout activity", e));
+
+      // 2. Perform sign out
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+
+      // 3. Redirect to login
+      router.push("/admin/login");
+      router.refresh();
+    } catch (err) {
+      console.error("Sign out error:", err);
+    } finally {
+      setSigningOut(false);
+      if (onClose) onClose();
+    }
+  };
 
   return (
     <aside className="h-screen w-64 border-r border-border-light bg-surface">
@@ -78,9 +115,13 @@ export function AdminSidebar({ onClose }: AdminSidebarProps) {
           })}
         </nav>
 
-        <button className="flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-error hover:bg-error/5 transition-colors">
+        <button
+          onClick={handleSignOut}
+          disabled={signingOut}
+          className="flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-error hover:bg-error/5 transition-colors disabled:opacity-50"
+        >
           <LogOut className="h-5 w-5" />
-          Sign Out
+          {signingOut ? "Signing Out..." : "Sign Out"}
         </button>
       </div>
     </aside>
