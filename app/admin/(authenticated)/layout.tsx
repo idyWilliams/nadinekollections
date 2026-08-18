@@ -7,6 +7,22 @@ import { NotificationCenter } from "@/components/shared/NotificationCenter";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
+import { usePathname } from "next/navigation";
+
+function getPageFriendlyName(pathname: string): string {
+  if (pathname === "/admin") return "Admin Dashboard";
+  if (pathname.startsWith("/admin/products/new")) return "Add New Product Form";
+  if (pathname.includes("/edit")) return "Edit Product Settings";
+  if (pathname.startsWith("/admin/products")) return "Products Inventory Grid";
+  if (pathname.startsWith("/admin/orders")) return "Orders Management Page";
+  if (pathname.startsWith("/admin/customers")) return "Customers List";
+  if (pathname.startsWith("/admin/bulk-orders")) return "Bulk Orders Panel";
+  if (pathname.startsWith("/admin/categories")) return "Categories Management";
+  if (pathname.startsWith("/admin/settings")) return "Settings & Team Management";
+  if (pathname.startsWith("/admin/promotions")) return "Promotions & Discounts";
+  if (pathname.startsWith("/admin/marketing")) return "Marketing Panel";
+  return pathname;
+}
 
 export default function AdminLayout({
   children,
@@ -15,6 +31,7 @@ export default function AdminLayout({
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const supabase = createClient();
+  const pathname = usePathname();
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
@@ -43,6 +60,32 @@ export default function AdminLayout({
       if (intervalId) clearInterval(intervalId);
     };
   }, [supabase]);
+
+  // Log page view when pathname changes
+  useEffect(() => {
+    if (!pathname) return;
+
+    const logPageView = async () => {
+      try {
+        const friendlyName = getPageFriendlyName(pathname);
+        await fetch("/api/admin/activities", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "view",
+            entityType: "page",
+            entityName: friendlyName,
+            details: `Navigated to ${friendlyName}`,
+            path: pathname,
+          }),
+        });
+      } catch (err) {
+        console.error("Failed to log page view:", err);
+      }
+    };
+
+    logPageView();
+  }, [pathname]);
 
   return (
     <div className="min-h-screen bg-background">

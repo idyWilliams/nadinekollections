@@ -3,6 +3,7 @@ import { createClient as createServerClient } from "@/lib/supabase/server";
 import { config } from "@/lib/config";
 import { NextResponse } from "next/server";
 import { sendEmail } from "@/lib/email";
+import { logAdminActivity } from "@/lib/admin-activity";
 
 /**
  * POST /api/admin/invite
@@ -117,7 +118,7 @@ export async function POST(request: Request) {
 
   const warnings: string[] = [];
   const siteUrl = config.site.url;
-  const redirectTo = `${siteUrl}/admin/login`;
+  const redirectTo = `${siteUrl}/admin/onboarding`;
 
   // Explicit URL log — searchable in production logs for invite-link debugging
   console.log(
@@ -260,6 +261,15 @@ export async function POST(request: Request) {
       warnings.push(`Failed to send notifications: ${e?.message ?? String(e)}`);
     }
 
+    await logAdminActivity({
+      adminId: user.id,
+      action: "create",
+      entityType: "invitation",
+      entityName: email,
+      details: `Invited existing user ${email} to join admin team`,
+      path: "/admin/settings",
+    });
+
     return NextResponse.json({
       message: "Invitation sent successfully to existing user",
       action: "invited",
@@ -401,6 +411,15 @@ export async function POST(request: Request) {
       warnings.push(`Failed to send notifications: ${e?.message ?? String(e)}`);
     }
 
+    await logAdminActivity({
+      adminId: user.id,
+      action: "update",
+      entityType: "user",
+      entityName: email,
+      details: `Promoted existing user ${email} to admin`,
+      path: "/admin/settings",
+    });
+
     console.log("[Invite API] Success: promoted existing auth user to admin:", email);
     return NextResponse.json({
       message: "Existing user promoted to admin successfully",
@@ -485,6 +504,15 @@ export async function POST(request: Request) {
     console.error("[Invite API] Warning sending invite notifications:", e);
     warnings.push(`Failed to send notifications: ${e?.message ?? String(e)}`);
   }
+
+  await logAdminActivity({
+    adminId: user.id,
+    action: "create",
+    entityType: "invitation",
+    entityName: email,
+    details: `Sent admin invitation to ${email}`,
+    path: "/admin/settings",
+  });
 
   console.log("[Invite API] Success: invitation dispatched to", email);
   return NextResponse.json({

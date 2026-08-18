@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { sendEmail } from "@/lib/email";
+import { logAdminActivity } from "@/lib/admin-activity";
 
 const SUPER_ADMIN_EMAILS = ["justminad@gmail.com", "widorenyin0@gmail.com"];
 
@@ -79,6 +80,15 @@ export async function POST(request: Request) {
         ? "Admin will be permanently deleted"
         : "Admin banned successfully";
 
+      await logAdminActivity({
+        adminId: user.id,
+        action: "ban",
+        entityType: "user",
+        entityName: targetAdmin.email || adminId,
+        details: `Banned admin user: ${targetAdmin.email || adminId}`,
+        path: "/admin/settings",
+      });
+
       emailSubject = "Account Suspended - NadineKollections Admin";
       emailBody = `
         <div style="font-family: sans-serif; color: #333;">
@@ -98,6 +108,15 @@ export async function POST(request: Request) {
       if (deleteError) throw deleteError;
 
       message = "Admin permanently deleted";
+
+      await logAdminActivity({
+        adminId: user.id,
+        action: "delete",
+        entityType: "user",
+        entityName: targetAdmin.email || adminId,
+        details: `Permanently deleted admin user: ${targetAdmin.email || adminId}`,
+        path: "/admin/settings",
+      });
       emailSubject = "Account Deleted - NadineKollections Admin";
       emailBody = `
         <div style="font-family: sans-serif; color: #333;">
@@ -120,6 +139,15 @@ export async function POST(request: Request) {
       if (updateError) throw updateError;
 
       message = "Admin reactivated successfully";
+
+      await logAdminActivity({
+        adminId: user.id,
+        action: "reactivate",
+        entityType: "user",
+        entityName: targetAdmin.email || adminId,
+        details: `Reactivated admin user: ${targetAdmin.email || adminId}`,
+        path: "/admin/settings",
+      });
       emailSubject = "Account Reactivated - NadineKollections Admin";
       emailBody = `
         <div style="font-family: sans-serif; color: #333;">

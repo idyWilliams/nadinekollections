@@ -8,7 +8,24 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { createClient } from "@/lib/supabase/client";
-import { UserPlus, Lock, Loader2, Mail } from "lucide-react";
+import { 
+  UserPlus, 
+  Lock, 
+  Loader2, 
+  Mail, 
+  Activity, 
+  Eye, 
+  Edit, 
+  PlusCircle, 
+  UserX, 
+  UserCheck, 
+  LogOut, 
+  ArrowRight,
+  Clock,
+  ExternalLink,
+  ShieldAlert,
+  ShieldCheck
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useRouter, useSearchParams } from "next/navigation";
 
 interface AdminProfile {
   id: string;
@@ -51,6 +69,27 @@ function getOnlineStatus(lastSeenAt: string | null | undefined) {
   return { isOnline: false, text: `Active ${diffDays}d ago` };
 }
 
+function getActivityIcon(action: string) {
+  switch (action) {
+    case "view":
+      return <Eye className="h-4 w-4 text-blue-500" />;
+    case "create":
+      return <PlusCircle className="h-4 w-4 text-green-500" />;
+    case "update":
+      return <Edit className="h-4 w-4 text-amber-500" />;
+    case "ban":
+      return <UserX className="h-4 w-4 text-red-500" />;
+    case "delete":
+      return <ShieldAlert className="h-4 w-4 text-red-700" />;
+    case "reactivate":
+      return <UserCheck className="h-4 w-4 text-green-600" />;
+    case "onboard":
+      return <ShieldCheck className="h-4 w-4 text-purple-500" />;
+    default:
+      return <Activity className="h-4 w-4 text-muted-foreground" />;
+  }
+}
+
 type PaymentProvider = 'paystack' | 'flutterwave' | 'monnify' | 'remita';
 
 interface AdminInvitation {
@@ -67,11 +106,21 @@ interface AdminInvitation {
 }
 
 export function SettingsPanel() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const activeTab = searchParams.get("tab") || "general";
+
   const [loading, setLoading] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [invitations, setInvitations] = useState<AdminInvitation[]>([]);
   const [admins, setAdmins] = useState<AdminProfile[]>([]);
+  
+  // Selected admin modal and activities state
+  const [selectedAdminForDetail, setSelectedAdminForDetail] = useState<AdminProfile | null>(null);
+  const [adminActivities, setAdminActivities] = useState<any[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
+
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -87,6 +136,27 @@ export function SettingsPanel() {
     onConfirm: () => {},
     variant: "primary",
   });
+
+  const fetchAdminActivities = useCallback(async (adminId: string) => {
+    setActivitiesLoading(true);
+    try {
+      const res = await fetch(`/api/admin/activities?adminId=${adminId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAdminActivities(data.activities || []);
+      } else {
+        toast.error("Failed to load activity logs.");
+      }
+    } catch (err) {
+      console.error("Error loading activity logs:", err);
+    } finally {
+      setActivitiesLoading(false);
+    }
+  }, []);
+
+  const handleTabChange = (value: string) => {
+    router.push(`/admin/settings?tab=${value}`);
+  };
 
   // Settings State
   const [settings, setSettings] = useState({
@@ -336,7 +406,7 @@ export function SettingsPanel() {
   ] as const;
 
   return (
-    <Tabs defaultValue="general" className="space-y-6">
+    <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
       <TabsList className="grid w-full grid-cols-4">
         <TabsTrigger value="general">General</TabsTrigger>
         <TabsTrigger value="team">Team</TabsTrigger>
@@ -429,7 +499,14 @@ export function SettingsPanel() {
           {admins.map((admin) => {
             const status = getOnlineStatus(admin.last_seen_at);
             return (
-              <Card key={admin.id} className="border-none shadow-card overflow-hidden">
+              <Card 
+                key={admin.id} 
+                className="border-none shadow-card overflow-hidden cursor-pointer hover:bg-muted/10 transition-colors"
+                onClick={() => {
+                  setSelectedAdminForDetail(admin);
+                  fetchAdminActivities(admin.id);
+                }}
+              >
                 <div className="flex items-center justify-between p-4">
                   <div className="flex items-center gap-4">
                     <div className="relative">
@@ -467,7 +544,14 @@ export function SettingsPanel() {
                     </span>
                     {!["justminad@gmail.com", "widorenyin0@gmail.com"].includes(admin.email || "") && (
                       <div className="flex gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => handleBanAdmin(admin.id, admin.is_active)}>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleBanAdmin(admin.id, admin.is_active);
+                          }}
+                        >
                           {admin.is_active ? "Ban" : "Restore"}
                         </Button>
                         {!admin.is_active && (
@@ -475,7 +559,10 @@ export function SettingsPanel() {
                             variant="ghost"
                             size="sm"
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => handleDeleteAdmin(admin.id, admin.email)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteAdmin(admin.id, admin.email);
+                            }}
                           >
                             Delete
                           </Button>
@@ -635,6 +722,104 @@ export function SettingsPanel() {
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : confirmDialog.actionLabel}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Admin details & activities modal */}
+      <Dialog 
+        open={selectedAdminForDetail !== null} 
+        onOpenChange={(open) => {
+          if (!open) setSelectedAdminForDetail(null);
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto bg-surface border-white/10 text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl font-bold text-primary">
+              <Activity className="h-5 w-5 text-primary animate-pulse" />
+              Admin Profile & Activity Log
+            </DialogTitle>
+            <DialogDescription className="text-text-secondary">
+              Chronological log of activities and session status.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedAdminForDetail && (
+            <div className="space-y-6 py-2">
+              {/* Profile Overview */}
+              <div className="flex items-center gap-4 bg-muted/10 p-4 rounded-xl border border-white/5">
+                <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-2xl relative">
+                  {selectedAdminForDetail.full_name?.[0] || selectedAdminForDetail.email[0].toUpperCase()}
+                  <span className={cn(
+                    "absolute bottom-0 right-0 block h-4 w-4 rounded-full ring-2 ring-background border-2 border-surface",
+                    getOnlineStatus(selectedAdminForDetail.last_seen_at).isOnline ? "bg-green-500" : "bg-gray-400"
+                  )} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-bold text-white truncate">
+                    {selectedAdminForDetail.full_name || "Admin User"}
+                  </h3>
+                  <p className="text-sm text-text-secondary truncate">{selectedAdminForDetail.email}</p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className={cn(
+                      "text-xs px-2.5 py-0.5 rounded-full font-medium capitalize",
+                      getOnlineStatus(selectedAdminForDetail.last_seen_at).isOnline ? "bg-green-500/10 text-green-500" : "bg-gray-400/10 text-gray-400"
+                    )}>
+                      {getOnlineStatus(selectedAdminForDetail.last_seen_at).text}
+                    </span>
+                    <span className="text-xs text-text-secondary">•</span>
+                    <span className="text-xs text-text-secondary">Role: {selectedAdminForDetail.role}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Activity Timeline */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold uppercase tracking-wider text-primary flex items-center gap-1.5 border-b border-white/5 pb-2">
+                  <Clock className="h-4 w-4" /> Recent Activities
+                </h4>
+
+                {activitiesLoading ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="text-sm">Fetching audit logs...</p>
+                  </div>
+                ) : adminActivities.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground text-sm border-2 border-dashed border-white/5 rounded-xl">
+                    No recorded activities for this admin.
+                  </div>
+                ) : (
+                  <div className="relative pl-6 border-l border-white/10 space-y-6">
+                    {adminActivities.map((act) => (
+                      <div key={act.id} className="relative group">
+                        {/* Timeline node icon */}
+                        <div className="absolute -left-[35px] top-0 bg-surface border border-white/10 rounded-full p-1.5 shadow-md flex items-center justify-center">
+                          {getActivityIcon(act.action)}
+                        </div>
+
+                        <div>
+                          <div className="flex items-start justify-between gap-4">
+                            <h5 className="font-semibold text-sm text-white capitalize">
+                              {act.action} {act.entity_type || "action"}
+                            </h5>
+                            <span className="text-xs text-muted-foreground whitespace-nowrap flex items-center gap-1">
+                              {new Date(act.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {new Date(act.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <p className="text-sm text-text-secondary mt-1">{act.details || `Admin took an action on ${act.entity_name}`}</p>
+                          {act.path && (
+                            <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground select-none">
+                              <ExternalLink className="h-3 w-3" />
+                              <span>{act.path}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </Tabs>
