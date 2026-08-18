@@ -19,6 +19,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Eye, EyeOff } from "lucide-react";
 
 const formSchema = z.object({
   firstName: z.string().min(2, {
@@ -41,6 +42,7 @@ const formSchema = z.object({
 export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
@@ -81,23 +83,24 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-black relative overflow-hidden">
-      {/* Background Image */}
+      {/* Background — pointer-events-none so touches pass through to form */}
       <div
-        className="absolute inset-0 z-0 opacity-60"
+        className="absolute inset-0 z-0 opacity-60 pointer-events-none"
         style={{
           backgroundImage: "url('/auth-bg-signup.png')",
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/60 to-black/80 z-0" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/60 to-black/80 z-0 pointer-events-none" />
 
       {/* Top Left Logo */}
       <Link href="/" className="absolute top-6 left-6 z-20">
         <Image src="/logo.png" alt="NadineKollections" width={120} height={64} className="h-16 w-auto" priority />
       </Link>
 
-      <div className="w-full max-w-md bg-surface/95 backdrop-blur-md p-8 rounded-xl shadow-2xl border border-white/10 relative z-10 mx-4">
+      {/* Card — scrollable on small screens so button is always reachable */}
+      <div className="w-full max-w-md bg-surface/95 backdrop-blur-md p-8 rounded-xl shadow-2xl border border-white/10 relative z-10 mx-4 my-8">
         <div className="text-center mb-8">
           <Link href="/" className="inline-block mb-6">
             <Image src="/logo.png" alt="NadineKollections" width={120} height={64} className="h-16 w-auto mx-auto" priority />
@@ -113,7 +116,7 @@ export default function SignupPage() {
         )}
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -123,7 +126,8 @@ export default function SignupPage() {
                     <FormLabel className="text-text-primary">First Name</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="John"
+                        placeholder="Jane"
+                        autoComplete="given-name"
                         className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary"
                         {...field}
                       />
@@ -142,6 +146,7 @@ export default function SignupPage() {
                     <FormControl>
                       <Input
                         placeholder="Doe"
+                        autoComplete="family-name"
                         className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary"
                         {...field}
                       />
@@ -160,7 +165,9 @@ export default function SignupPage() {
                   <FormLabel className="text-text-primary">Email Address</FormLabel>
                   <FormControl>
                     <Input
+                      type="email"
                       placeholder="you@example.com"
+                      autoComplete="email"
                       className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary"
                       {...field}
                     />
@@ -180,6 +187,7 @@ export default function SignupPage() {
                     <Input
                       type="tel"
                       placeholder="+234 800 000 0000"
+                      autoComplete="tel"
                       className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary"
                       {...field}
                     />
@@ -196,12 +204,24 @@ export default function SignupPage() {
                 <FormItem>
                   <FormLabel className="text-text-primary">Password</FormLabel>
                   <FormControl>
-                    <Input
-                      type="password"
-                      placeholder="••••••••"
-                      className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary"
-                      {...field}
-                    />
+                    <div className="relative">
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        autoComplete="new-password"
+                        className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary pr-11"
+                        {...field}
+                      />
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-white transition-colors p-1 touch-manipulation"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -211,9 +231,9 @@ export default function SignupPage() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full shadow-glow py-6 text-lg font-semibold tracking-wide uppercase"
+              className="w-full shadow-glow py-6 text-lg font-semibold tracking-wide uppercase touch-manipulation"
             >
-              {loading ? "Creating Account..." : "Sign Up"}
+              {loading ? "Creating Account…" : "Sign Up"}
             </Button>
           </form>
         </Form>

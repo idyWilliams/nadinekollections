@@ -19,6 +19,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Eye, EyeOff } from "lucide-react";
 
 const formSchema = z.object({
   email: z.string().email({
@@ -34,6 +35,7 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<"credentials" | "otp">("credentials");
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
@@ -112,23 +114,24 @@ export default function AdminLoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-black relative overflow-hidden">
-      {/* Background Image */}
+      {/* Background — pointer-events-none so touches reach the form */}
       <div
-        className="absolute inset-0 z-0 opacity-60"
+        className="absolute inset-0 z-0 opacity-60 pointer-events-none"
         style={{
           backgroundImage: "url('/auth-bg-admin.png')",
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/60 to-black/80 z-0" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/60 to-black/80 z-0 pointer-events-none" />
 
       {/* Top Left Logo */}
       <Link href="/" className="absolute top-6 left-6 z-20">
         <Image src="/logo.png" alt="NadineKollections" width={120} height={64} className="h-16 w-auto" priority />
       </Link>
 
-      <div className="w-full max-w-md bg-surface/95 backdrop-blur-md p-8 rounded-xl shadow-2xl border border-white/10 relative z-10 mx-4">
+      {/* Card — my-8 for mobile scrollability */}
+      <div className="w-full max-w-md bg-surface/95 backdrop-blur-md p-8 rounded-xl shadow-2xl border border-white/10 relative z-10 mx-4 my-8">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-primary mb-2">Admin Portal</h1>
           <p className="text-text-secondary">
@@ -143,7 +146,7 @@ export default function AdminLoginPage() {
         )}
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
             {step === "credentials" ? (
               <>
                 <FormField
@@ -154,7 +157,9 @@ export default function AdminLoginPage() {
                       <FormLabel className="text-text-primary">Email Address</FormLabel>
                       <FormControl>
                         <Input
+                          type="email"
                           placeholder="admin@nadinekollections.com"
+                          autoComplete="email"
                           className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary"
                           {...field}
                         />
@@ -171,12 +176,24 @@ export default function AdminLoginPage() {
                     <FormItem>
                       <FormLabel className="text-text-primary">Password</FormLabel>
                       <FormControl>
-                        <Input
-                          type="password"
-                          placeholder="••••••••"
-                          className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary"
-                          {...field}
-                        />
+                        <div className="relative">
+                          <Input
+                            type={showPassword ? "text" : "password"}
+                            placeholder="••••••••"
+                            autoComplete="current-password"
+                            className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary pr-11"
+                            {...field}
+                          />
+                          <button
+                            type="button"
+                            tabIndex={-1}
+                            aria-label={showPassword ? "Hide password" : "Show password"}
+                            onClick={() => setShowPassword((v) => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-white transition-colors p-1 touch-manipulation"
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -201,6 +218,8 @@ export default function AdminLoginPage() {
                     <FormControl>
                       <Input
                         placeholder="123456"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
                         className="bg-background/50 border-white/10 focus:border-primary focus:ring-primary text-center text-2xl tracking-widest"
                         maxLength={8}
                         {...field}
@@ -218,23 +237,23 @@ export default function AdminLoginPage() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full shadow-glow py-6 text-lg font-semibold tracking-wide uppercase"
+              className="w-full shadow-glow py-6 text-lg font-semibold tracking-wide uppercase touch-manipulation"
             >
               {loading
-                ? "Processing..."
+                ? "Processing…"
                 : step === "credentials"
                 ? "Verify Credentials"
                 : "Verify & Login"}
             </Button>
 
             {step === "otp" && (
-                <button
-                    type="button"
-                    onClick={() => setStep("credentials")}
-                    className="w-full text-sm text-text-secondary hover:text-primary mt-2"
-                >
-                    Cancel
-                </button>
+              <button
+                type="button"
+                onClick={() => setStep("credentials")}
+                className="w-full text-sm text-text-secondary hover:text-primary mt-2 touch-manipulation"
+              >
+                ← Go back
+              </button>
             )}
           </form>
         </Form>
@@ -242,7 +261,7 @@ export default function AdminLoginPage() {
         <div className="mt-6 text-center">
           <button
             onClick={() => router.push("/")}
-            className="text-sm text-text-secondary hover:text-primary transition-colors"
+            className="text-sm text-text-secondary hover:text-primary transition-colors touch-manipulation"
           >
             ← Back to Store
           </button>
