@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { formatCurrency } from "@/lib/utils";
 import {
   MoreHorizontal,
@@ -16,7 +16,10 @@ import {
   EyeOff,
   CheckSquare,
   Square,
-  Trash2
+  Trash2,
+  ShoppingCart,
+  AlertCircle,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,6 +74,9 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'stock-low' | 'stock-high'>('newest');
   const [filterStatus, setFilterStatus] = useState<'all' | 'out' | 'low' | 'in' | 'stale'>('all');
+  // Restock: track which products are loading / on cooldown (60s UI cooldown)
+  const [restockLoading, setRestockLoading] = useState<Record<string, boolean>>({});
+  const [restockCooldowns, setRestockCooldowns] = useState<Record<string, number>>({}); // timestamp until which button is disabled
   const router = useRouter();
   const supabase = createClient();
   const queryClient = useQueryClient();
@@ -110,6 +116,74 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
     initialData: initialProducts,
     staleTime: 1000 * 60, // 1 minute
   });
+
+  // ─── Auto-trigger: fire email for any product with stock < 2 on mount ──────
+  useEffect(() => {
+    const hasCriticalStock = (products || []).some((p) => p.stock < 2);
+    if (!hasCriticalStock) return;
+
+    const runAutoAlert = async () => {
+      try {
+        const res = await fetch('/api/auto-low-stock-email', { method: 'POST' });
+        const data = await res.json();
+        if (data.alertsSent > 0) {
+          toast.warning(
+            `🚨 Auto-alert fired! ${data.alertsSent} critical product${data.alertsSent !== 1 ? 's' : ''} emailed to management.`,
+            { duration: 6000, id: 'auto-low-stock' }
+          );
+        }
+      } catch {
+        // Silent — don't interrupt the admin's workflow
+      }
+    };
+
+    runAutoAlert();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount
+
+  // ─── Manual restock alert ─────────────────────────────────────────────────
+  const sendRestockAlert = useCallback(async (productId: string, productTitle: string) => {
+    // Check UI cooldown
+    const cooldownUntil = restockCooldowns[productId];
+    if (cooldownUntil && Date.now() < cooldownUntil) {
+      const secsLeft = Math.ceil((cooldownUntil - Date.now()) / 1000);
+      toast.info(`⏳ Alert already sent. Wait ${secsLeft}s before resending.`);
+      return;
+    }
+
+    setRestockLoading((prev) => ({ ...prev, [productId]: true }));
+
+    try {
+      const res = await fetch('/api/restock-alert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId, triggeredBy: 'manual' }),
+      });
+
+      const data = await res.json();
+
+      if (res.status === 429) {
+        toast.info(`⏳ ${data.error}`);
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to send alert');
+      }
+
+      toast.success(
+        `📧 Restock alert sent! ${data.emailsSent} admin${data.emailsSent !== 1 ? 's' : ''} notified about "${productTitle}"`,
+        { duration: 5000 }
+      );
+
+      // Set UI cooldown for 60 seconds
+      setRestockCooldowns((prev) => ({ ...prev, [productId]: Date.now() + 60_000 }));
+    } catch (err) {
+      toast.error(`Failed to send restock alert: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setRestockLoading((prev) => ({ ...prev, [productId]: false }));
+    }
+  }, [restockCooldowns]);
 
   const toggleProductStatus = async (id: string, currentStatus: boolean) => {
     try {
@@ -390,6 +464,24 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
                           )}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
+                        {product.stock < 10 && (
+                          <DropdownMenuItem
+                            onClick={() => sendRestockAlert(product.id, product.title)}
+                            disabled={
+                              restockLoading[product.id] ||
+                              (!!restockCooldowns[product.id] && Date.now() < restockCooldowns[product.id])
+                            }
+                            className={product.stock < 2 ? 'text-red-600' : 'text-amber-600'}
+                          >
+                            {restockLoading[product.id] ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <ShoppingCart className="mr-2 h-4 w-4" />
+                            )}
+                            {restockLoading[product.id] ? 'Sending Alert…' : 'Send Restock Alert'}
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-error" onClick={() => deleteProduct(product.id)}>
                           <Trash2 className="mr-2 h-4 w-4" /> Delete Product
                         </DropdownMenuItem>
@@ -495,7 +587,38 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
                         <Badge variant={product.status === 'Active' ? 'success' : 'secondary'}>{product.status}</Badge>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end items-center gap-2">
+                          {/* Restock Alert Button — visible for stock < 10 */}
+                          {product.stock < 10 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className={`h-8 gap-1.5 text-xs font-semibold transition-all ${
+                                product.stock < 2
+                                  ? 'border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 animate-pulse'
+                                  : 'border-amber-500 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950'
+                              } disabled:opacity-50 disabled:cursor-not-allowed`}
+                              onClick={() => sendRestockAlert(product.id, product.title)}
+                              disabled={
+                                restockLoading[product.id] ||
+                                (!!restockCooldowns[product.id] && Date.now() < restockCooldowns[product.id])
+                              }
+                              title="Send restock alert to management"
+                            >
+                              {restockLoading[product.id] ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : product.stock < 2 ? (
+                                <AlertCircle className="h-3 w-3" />
+                              ) : (
+                                <ShoppingCart className="h-3 w-3" />
+                              )}
+                              {restockLoading[product.id]
+                                ? 'Sending…'
+                                : restockCooldowns[product.id] && Date.now() < restockCooldowns[product.id]
+                                ? 'Sent ✓'
+                                : 'Restock'}
+                            </Button>
+                          )}
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => router.push(`/admin/products/${product.id}/edit`)}>
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -549,11 +672,35 @@ export function ProductInventoryGrid({ products: initialProducts }: ProductInven
                       </div>
                       <span className="text-xs text-text-secondary">Added: {new Date(product.created_at).toLocaleDateString()}</span>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap justify-end">
+                      {/* Mobile Restock Button */}
+                      {product.stock < 10 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className={`h-8 gap-1 text-xs font-semibold ${
+                            product.stock < 2
+                              ? 'border-red-500 text-red-600 hover:bg-red-50 animate-pulse'
+                              : 'border-amber-500 text-amber-600 hover:bg-amber-50'
+                          } disabled:opacity-50`}
+                          onClick={() => sendRestockAlert(product.id, product.title)}
+                          disabled={
+                            restockLoading[product.id] ||
+                            (!!restockCooldowns[product.id] && Date.now() < restockCooldowns[product.id])
+                          }
+                        >
+                          {restockLoading[product.id] ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <ShoppingCart className="h-3 w-3" />
+                          )}
+                          {restockLoading[product.id] ? '…' : 'Restock'}
+                        </Button>
+                      )}
                       <Button variant="outline" size="sm" className="h-8" onClick={() => router.push(`/admin/products/${product.id}/edit`)}>
                         <Edit className="h-3 w-3 mr-1" /> Edit
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-error">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-error" onClick={() => deleteProduct(product.id)}>
                         <Trash className="h-4 w-4" />
                       </Button>
                     </div>
