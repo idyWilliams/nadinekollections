@@ -271,9 +271,148 @@ export async function POST(request: Request) {
   }
 
   // =====================================================================
-  // BRANCH B: No profile yet => INITIAL INVITE (brand new user)
+  // BRANCH B: No profile yet => Check auth.users, then invite or promote
   // =====================================================================
-  console.log("[Invite API] No existing profile; sending initial invite. redirectTo=", redirectTo);
+  console.log("[Invite API] No existing profile; checking auth.users for:", email);
+
+  // Check if user exists in auth.users (they may have signed up as a
+  // customer but have no profiles row, or their profile was deleted).
+  // Supabase's inviteUserByEmail throws "email_exists" if the auth user
+  // already exists, so we must handle that case before calling it.
+  let existingAuthUser: { id: string; email?: string } | null = null;
+  try {
+    // Try to find the user in auth by filtering — the most reliable way
+    // is to use the admin listUsers and scan, but for large user bases
+    // we can attempt a direct lookup via the admin API getUserById workaround:
+    const { data: allUsers } = await adminAuthClient.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    });
+    existingAuthUser = allUsers?.users?.find(
+      (u) => u.email?.toLowerCase() === email
+    ) ?? null;
+  } catch (e) {
+    console.warn("[Invite API] Could not search auth.users, proceeding with invite:", e);
+  }
+
+  if (existingAuthUser) {
+    // ── BRANCH B1: Auth user exists but no profile ──────────────────────
+    // Promote them to admin directly instead of inviting (which would fail).
+    console.log(`[Invite API] Found auth user ${existingAuthUser.id} with no profile. Promoting to admin.`);
+
+    // Update auth user metadata to include admin role
+    const { error: updateAuthErr } = await adminAuthClient.auth.admin.updateUserById(
+      existingAuthUser.id,
+      { user_metadata: { role: "admin" } }
+    );
+    if (updateAuthErr) {
+      console.error("[Invite API] Stage=promote_auth_user: error:", updateAuthErr);
+      return NextResponse.json(
+        { error: "Failed to promote user in auth", stage: "promote_auth_user", details: updateAuthErr },
+        { status: 500 }
+      );
+    }
+
+    // Create or update their profile with admin role
+    const { error: upsertProfileErr } = await adminAuthClient
+      .from("profiles")
+      .upsert(
+        {
+          id: existingAuthUser.id,
+          email,
+          role: "admin",
+          is_active: true,
+          deleted_at: null,
+        },
+        { onConflict: "id" }
+      );
+    if (upsertProfileErr) {
+      console.error("[Invite API] Stage=upsert_profile: error:", upsertProfileErr);
+      warnings.push(`Profile upsert failed: ${upsertProfileErr.message}`);
+    }
+
+    // Track invitation + send custom invite email (same as Branch A)
+    const token = `INVITE-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const acceptLink = `${siteUrl}/api/admin/invite/accept?token=${token}`;
+
+    const { error: trackErr } = await adminAuthClient
+      .from("admin_invitations")
+      .upsert(
+        {
+          email,
+          invited_by: user.id,
+          status: "pending",
+          resent_count: 0,
+          last_sent_at: new Date().toISOString(),
+          token,
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          accepted_at: null,
+        },
+        { onConflict: "email" }
+      );
+    if (trackErr) {
+      warnings.push(`Failed to track invitation: ${trackErr.message}`);
+    }
+
+    const emailRes = await sendEmail({
+      to: email,
+      subject: "You've been promoted to Admin — NadineKollections",
+      html: `
+        <div style="font-family: sans-serif; color: #333; line-height: 1.6;">
+          <h2>Welcome to the Admin Team! 🎉</h2>
+          <p>Your account has been promoted to admin for NadineKollections.</p>
+          <p>You can now access the admin dashboard with your existing login.</p>
+          <p style="margin-top: 20px;">
+            <a href="${acceptLink}" style="display:inline-block; padding: 12px 24px; background-color: #000; color: #fff; text-decoration: none; border-radius: 6px; font-weight: bold;">Accept & Go to Admin Panel</a>
+          </p>
+          <p style="margin-top: 20px; font-size: 14px; color: #666;">
+            Or click this link:<br/>
+            <a href="${acceptLink}" style="color: #0066cc;">${acceptLink}</a>
+          </p>
+        </div>
+      `,
+    });
+    if (!emailRes.success) {
+      warnings.push("Failed to send promotion email.");
+    }
+
+    // Notify peer admins
+    try {
+      const { data: adminProfiles } = await adminAuthClient
+        .from("profiles")
+        .select("id")
+        .eq("role", "admin")
+        .eq("is_active", true)
+        .is("deleted_at", null);
+      if (adminProfiles && adminProfiles.length > 0) {
+        const notifications = adminProfiles
+          .filter((a) => a.id !== user.id)
+          .map((a) => ({
+            user_id: a.id,
+            title: "Existing User Promoted to Admin",
+            message: `${email} has been promoted to admin.`,
+            type: "info" as const,
+          }));
+        if (notifications.length > 0) {
+          await adminAuthClient.from("notifications").insert(notifications);
+        }
+      }
+    } catch (e: any) {
+      warnings.push(`Failed to send notifications: ${e?.message ?? String(e)}`);
+    }
+
+    console.log("[Invite API] Success: promoted existing auth user to admin:", email);
+    return NextResponse.json({
+      message: "Existing user promoted to admin successfully",
+      action: "promoted",
+      userId: existingAuthUser.id,
+      email,
+      warnings: warnings.length ? warnings : undefined,
+    });
+  }
+
+  // ── BRANCH B2: Truly new user — no auth record at all ─────────────────
+  console.log("[Invite API] No auth user found; sending initial invite. redirectTo=", redirectTo);
 
   const { error: inviteError } = await adminAuthClient.auth.admin.inviteUserByEmail(
     email,
