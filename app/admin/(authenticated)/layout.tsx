@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { Search, Menu } from "lucide-react";
 import { NotificationCenter } from "@/components/shared/NotificationCenter";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/client";
 
 export default function AdminLayout({
   children,
@@ -13,6 +14,35 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const supabase = createClient();
+
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+
+    const updateLastSeen = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase
+            .from("profiles")
+            .update({ last_seen_at: new Date().toISOString() })
+            .eq("id", user.id);
+        }
+      } catch (err) {
+        console.error("Failed to update last_seen_at:", err);
+      }
+    };
+
+    // Run immediately on mount
+    updateLastSeen();
+
+    // Run every 60 seconds
+    intervalId = setInterval(updateLastSeen, 60000);
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [supabase]);
 
   return (
     <div className="min-h-screen bg-background">

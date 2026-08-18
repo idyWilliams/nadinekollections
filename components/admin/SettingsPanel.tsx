@@ -28,6 +28,27 @@ interface AdminProfile {
   role: string;
   is_active: boolean;
   deleted_at?: string | null;
+  last_seen_at?: string | null;
+}
+
+function getOnlineStatus(lastSeenAt: string | null | undefined) {
+  if (!lastSeenAt) return { isOnline: false, text: "Offline" };
+  const lastSeen = new Date(lastSeenAt).getTime();
+  const diff = Date.now() - lastSeen;
+  const fiveMinutes = 5 * 60 * 1000;
+
+  if (diff < fiveMinutes) {
+    return { isOnline: true, text: "Online" };
+  }
+
+  const diffSecs = Math.floor(diff / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 60) return { isOnline: false, text: `Active ${diffMins}m ago` };
+  if (diffHours < 24) return { isOnline: false, text: `Active ${diffHours}h ago` };
+  return { isOnline: false, text: `Active ${diffDays}d ago` };
 }
 
 type PaymentProvider = 'paystack' | 'flutterwave' | 'monnify' | 'remita';
@@ -377,34 +398,55 @@ export function SettingsPanel() {
         </div>
 
         <div className="grid gap-4">
-          {admins.map((admin) => (
-            <Card key={admin.id} className="border-none shadow-card overflow-hidden">
-              <div className="flex items-center justify-between p-4">
-                <div className="flex items-center gap-4">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
-                    {admin.full_name?.[0] || admin.email[0].toUpperCase()}
+          {admins.map((admin) => {
+            const status = getOnlineStatus(admin.last_seen_at);
+            return (
+              <Card key={admin.id} className="border-none shadow-card overflow-hidden">
+                <div className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
+                        {admin.full_name?.[0] || admin.email[0].toUpperCase()}
+                      </div>
+                      <span className={cn(
+                        "absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-background",
+                        status.isOnline ? "bg-green-500" : "bg-gray-400"
+                      )} />
+                    </div>
+                    <div>
+                      <p className="font-medium flex items-center gap-2">
+                        {admin.full_name || "Admin User"}
+                        {status.isOnline && (
+                          <span className="text-[10px] bg-green-500/10 text-green-600 px-1.5 py-0.5 rounded font-normal">
+                            Online
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-sm text-muted-foreground">{admin.email}</p>
+                      {admin.last_seen_at && !status.isOnline && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {status.text}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium">{admin.full_name || "Admin User"}</p>
-                    <p className="text-sm text-muted-foreground">{admin.email}</p>
+                  <div className="flex items-center gap-3">
+                    <span className={cn(
+                      "text-xs px-2.5 py-0.5 rounded-full font-medium",
+                      admin.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                    )}>
+                      {admin.is_active ? "Active" : "Banned"}
+                    </span>
+                    {!["justminad@gmail.com", "widorenyin0@gmail.com"].includes(admin.email || "") && (
+                      <Button variant="ghost" size="sm" onClick={() => handleBanAdmin(admin.id, admin.is_active)}>
+                        {admin.is_active ? "Ban" : "Restore"}
+                      </Button>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className={cn(
-                    "text-xs px-2.5 py-0.5 rounded-full font-medium",
-                    admin.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                  )}>
-                    {admin.is_active ? "Active" : "Banned"}
-                  </span>
-                  {!["justminad@gmail.com", "widorenyin0@gmail.com"].includes(admin.email || "") && (
-                    <Button variant="ghost" size="sm" onClick={() => handleBanAdmin(admin.id, admin.is_active)}>
-                      {admin.is_active ? "Ban" : "Restore"}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
 
           {invitations.map((invite) => (
             <Card key={invite.id} className="border-none shadow-card border-dashed bg-muted/20">
@@ -418,6 +460,11 @@ export function SettingsPanel() {
                       <Mail className="h-3 w-3" /> Invited
                     </p>
                     <p className="text-sm">{invite.email}</p>
+                    {invite.status === 'accepted' && invite.accepted_at && (
+                      <p className="text-xs text-green-600 mt-0.5">
+                        Accepted on {new Date(invite.accepted_at).toLocaleDateString()}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3">

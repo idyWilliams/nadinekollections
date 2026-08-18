@@ -448,7 +448,8 @@ export async function POST(request: Request) {
           resent_count: 0,
           last_sent_at: new Date().toISOString(),
           token: `INVITE-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
-          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          accepted_at: null
         },
         { onConflict: "email" }
       );
