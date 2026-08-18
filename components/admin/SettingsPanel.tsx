@@ -299,7 +299,35 @@ export function SettingsPanel() {
       },
     });
   };
-
+  const handleDeleteAdmin = async (adminId: string, email: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "Permanently Delete Admin",
+      description: `Are you sure you want to permanently delete ${email}? This will completely wipe their account from the system, and they must be re-invited from scratch to get access again.`,
+      actionLabel: "Delete Forever",
+      variant: "destructive",
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          const response = await fetch("/api/admin/ban", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ adminId, action: "delete" }),
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error);
+          toast.success(data.message);
+          fetchAdmins();
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : "Failed to delete admin";
+          toast.error(message);
+        } finally {
+          setLoading(false);
+          setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+        }
+      },
+    });
+  };
   const providers = [
     { id: 'paystack', name: 'Paystack', status: 'High Performance', statusColor: 'text-green-500' },
     { id: 'flutterwave', name: 'Flutterwave', status: 'Average Load', statusColor: 'text-yellow-500' },
@@ -438,9 +466,21 @@ export function SettingsPanel() {
                       {admin.is_active ? "Active" : "Banned"}
                     </span>
                     {!["justminad@gmail.com", "widorenyin0@gmail.com"].includes(admin.email || "") && (
-                      <Button variant="ghost" size="sm" onClick={() => handleBanAdmin(admin.id, admin.is_active)}>
-                        {admin.is_active ? "Ban" : "Restore"}
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => handleBanAdmin(admin.id, admin.is_active)}>
+                          {admin.is_active ? "Ban" : "Restore"}
+                        </Button>
+                        {!admin.is_active && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleDeleteAdmin(admin.id, admin.email)}
+                          >
+                            Delete
+                          </Button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

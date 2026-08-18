@@ -92,19 +92,10 @@ export async function POST(request: Request) {
       `;
 
     } else if (action === "delete") {
-      // Permanently delete (soft delete)
-      const { error: updateError } = await adminAuthClient
-        .from("profiles")
-        .update({
-          is_active: false,
-          deleted_at: new Date().toISOString()
-        })
-        .eq("id", adminId);
+      // Permanently delete from Supabase Auth (cascades to public.profiles)
+      const { error: deleteError } = await adminAuthClient.auth.admin.deleteUser(adminId);
 
-      if (updateError) throw updateError;
-
-      // Sign out all sessions
-      await adminAuthClient.auth.admin.signOut(adminId);
+      if (deleteError) throw deleteError;
 
       message = "Admin permanently deleted";
       emailSubject = "Account Deleted - NadineKollections Admin";
