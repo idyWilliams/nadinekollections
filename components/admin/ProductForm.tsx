@@ -674,14 +674,14 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
     return 0;
   };
 
-  const generateSKU = () => {
-    const categoryCode = formData.category[0]?.substring(0, 3).toUpperCase() || "GEN";
-    const titleCode = formData.title
+  const generateSKU = (title?: string, category?: string[]) => {
+    const cat = (category ?? formData.category)[0]?.substring(0, 3).toUpperCase() || "GEN";
+    const ttl = (title ?? formData.title)
       .substring(0, 3)
       .toUpperCase()
-      .replace(/[^A-Z]/g, "X");
-    const randomNum = Math.floor(1000 + Math.random() * 9000); // 4 digit random
-    return `${categoryCode}-${titleCode}-${randomNum}`;
+      .replace(/[^A-Z]/g, "X") || "XXX";
+    const randomNum = Math.floor(1000 + Math.random() * 90000); // 5 digit random for lower collision chance
+    return `${cat}-${ttl}-${randomNum}`;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -719,9 +719,12 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/(^-|-$)/g, "");
 
+      // If no SKU provided, generate a unique one to avoid null-uniqueness issues
+      const skuValue = formData.sku?.trim() || generateSKU(formData.title, formData.category);
+
       const productData = {
         title: formData.title,
-        slug: isEditing ? undefined : slug, // Don't update slug on edit to preserve SEO
+        slug: isEditing ? undefined : slug,
         description: formData.description || null,
         category: formData.category,
         brand_id: formData.brandId || null,
@@ -730,7 +733,7 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
         sale_price: salePrice,
         price: salePrice,
         stock: parseInt(formData.stock) || 0,
-        sku: formData.sku?.trim() || null,
+        sku: skuValue,
         images: images,
         promotion_id: formData.promotionId || null,
         seo_meta: {
@@ -743,25 +746,54 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
 
       let error;
       let productId = initialData?.id;
+      let retryCount = 0;
+      const MAX_RETRIES = 3;
 
-      if (isEditing && initialData?.id) {
-        const { error: updateError } = await supabase
-          .from("products")
-          .update(productData)
-          .eq("id", initialData.id);
-        error = updateError;
-      } else {
-        const { data: newProduct, error: insertError } = await supabase
-          .from("products")
-          .insert(productData)
-          .select()
-          .single();
+      // Retry loop to handle rare SKU collisions on auto-generated SKUs
+      while (retryCount <= MAX_RETRIES) {
+        if (isEditing && initialData?.id) {
+          const { error: updateError } = await supabase
+            .from("products")
+            .update(productData)
+            .eq("id", initialData.id);
+          error = updateError;
+          break;
+        } else {
+          const { data: newProduct, error: insertError } = await supabase
+            .from("products")
+            .insert(productData)
+            .select()
+            .single();
 
-        error = insertError;
-        if (newProduct) productId = newProduct.id;
+          error = insertError;
+          if (newProduct) {
+            productId = newProduct.id;
+            break;
+          }
+
+          // If SKU collision and SKU was auto-generated, retry with a new one
+          const isSkuCollision = insertError?.code === "23505" ||
+            insertError?.message?.includes("products_sku_key") ||
+            insertError?.message?.includes("sku");
+
+          if (isSkuCollision && !formData.sku?.trim() && retryCount < MAX_RETRIES) {
+            retryCount++;
+            (productData as any).sku = generateSKU(formData.title, formData.category);
+            continue;
+          }
+          break;
+        }
       }
 
-      if (error) throw error;
+      if (error) {
+        const isSkuError = error?.code === "23505" ||
+          error?.message?.includes("products_sku_key") ||
+          error?.message?.includes("sku");
+        if (isSkuError && formData.sku?.trim()) {
+          throw new Error("This SKU is already used by another product. Please change the SKU or leave it empty to auto-generate one.");
+        }
+        throw error;
+      }
 
       // Handle Variants
       if (productId) {
@@ -780,10 +812,10 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
           const variantsToInsert = variants.map(v => ({
             product_id: productId,
             name: v.name,
-            sku: v.sku,
-            inventory_count: v.stock, // FIXED: Map stock to inventory_count
-            image_url: v.image_url,
-            attributes: { color: v.color, size: v.size, hex: v.hex } // Storing structured attributes
+            sku: v.sku || null,
+            inventory_count: v.stock,
+            image_url: v.image_url || null,
+            attributes: { color: v.color, size: v.size, hex: v.hex }
           }));
 
           const { error: variantsError } = await supabase
@@ -808,13 +840,7 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
       router.refresh();
     } catch (error: any) {
       console.error("Error saving product:", error);
-      let message = error instanceof Error ? error.message : "Failed to save product";
-
-      // Handle Supabase unique constraint error for SKU
-      if (error?.code === "23505" || message.includes("products_sku_key")) {
-        message = "This SKU is already in use by another product. Please use a unique SKU.";
-      }
-
+      const message = error instanceof Error ? error.message : "Failed to save product";
       toast.error(message);
     } finally {
       setIsLoading(false);
@@ -824,19 +850,22 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
   const discount = calculateDiscount();
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="max-w-5xl mx-auto space-y-4 px-0">
+      {/* Page Header */}
+      <div className="flex flex-col gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">{isEditing ? "Edit Product" : "Add New Product"}</h1>
-          <p className="text-sm text-text-secondary">
+          <h1 className="text-xl sm:text-2xl font-bold leading-tight">{isEditing ? "Edit Product" : "Add New Product"}</h1>
+          <p className="text-xs sm:text-sm text-text-secondary mt-0.5">
             {isEditing ? "Update product details and inventory." : "Create a new product for your store."}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+        {/* Action buttons row — scrollable on tiny screens */}
+        <div className="flex items-center gap-2 flex-wrap">
           <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <Eye className="h-4 w-4" /> Preview
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs sm:text-sm h-8 sm:h-9">
+                <Eye className="h-3.5 w-3.5" />
+                <span>Preview</span>
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[400px]">
@@ -860,21 +889,30 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
               </div>
             </DialogContent>
           </Dialog>
-          <Button variant="outline" onClick={() => router.back()}>
+          <Button variant="outline" size="sm" onClick={() => router.back()} className="text-xs sm:text-sm h-8 sm:h-9">
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isLoading || isUploading}>
-            {isLoading ? "Saving..." : isUploading ? "Uploading..." : isEditing ? "Update Product" : "Create Product"}
+          <Button
+            size="sm"
+            onClick={handleSubmit}
+            disabled={isLoading || isUploading}
+            className="text-xs sm:text-sm h-8 sm:h-9 ml-auto"
+          >
+            {isLoading ? (
+              <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Saving...</>
+            ) : isUploading ? (
+              <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Uploading...</>
+            ) : isEditing ? "Update Product" : "Save Product"}
           </Button>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-4">
         {/* Basic Information */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" />
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Package className="h-4 w-4 sm:h-5 sm:w-5" />
               Basic Information
             </CardTitle>
           </CardHeader>
@@ -901,30 +939,26 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2 md:col-span-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="category">
-                      Categories * <span className="text-xs text-text-secondary font-normal">(select multiple)</span>
+            <div className="grid grid-cols-1 gap-4">
+              <div className="space-y-2">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Label htmlFor="category" className="text-xs sm:text-sm">
+                      Categories * <span className="text-[10px] sm:text-xs text-text-secondary font-normal">(select multiple)</span>
                     </Label>
                     {categoriesLoading ? (
-                      <Badge variant="outline" className="text-[10px] px-2 py-0.5 text-text-muted">
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 text-text-muted">
                         <Loader2 className="h-3 w-3 inline mr-1 animate-spin" />Syncing…
                       </Badge>
                     ) : dynamicCategories && dynamicCategories.length > 0 ? (
-                      <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-primary/10 text-primary border-primary/30">
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary border-primary/30">
                         <Tag className="h-3 w-3 inline mr-1" />
-                        Admin-managed ({dynamicCategories.filter(c => c.is_active !== false).length} tags)
+                        {dynamicCategories.filter(c => c.is_active !== false).length} tags
                       </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-amber-50 text-amber-700 border-amber-300">
-                        Hardcoded fallback — run migration 002 to unlock Admin panel
-                      </Badge>
-                    )}
+                    ) : null}
                   </div>
-                  <span className="text-[11px] text-text-secondary">
-                    Best practice: 1 Audience + 1 Product Type + (optional) Shoe Style + Style/Occasion
+                  <span className="text-[10px] text-text-secondary hidden sm:block">
+                    Tip: Pick Audience + Product Type + Style
                   </span>
                 </div>
                 <div className="border rounded-lg p-4 space-y-4 bg-muted/10">
@@ -1068,89 +1102,96 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
 
         {/* Pricing */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <DollarSign className="h-4 w-4 sm:h-5 sm:w-5" />
               Pricing
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="originalPrice">Original Price (₦)</Label>
+            {/* Price row: 2-col on mobile (orig + sale), discount on its own line */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="originalPrice" className="text-xs sm:text-sm">Original Price (₦)</Label>
                 <Input
                   id="originalPrice"
                   type="number"
                   step="0.01"
+                  inputMode="decimal"
                   value={formData.originalPrice}
                   onChange={(e) => setFormData({ ...formData, originalPrice: e.target.value })}
                   placeholder="0.00"
+                  className="h-9 text-sm"
                 />
-                <p className="text-xs text-text-secondary">Leave empty if no discount</p>
+                <p className="text-[10px] text-text-secondary hidden sm:block">Leave empty if no discount</p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="salePrice">Sale Price (₦) *</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="salePrice" className="text-xs sm:text-sm">Sale Price (₦) *</Label>
                 <Input
                   id="salePrice"
                   type="number"
                   step="0.01"
+                  inputMode="decimal"
                   required
                   value={formData.salePrice}
                   onChange={(e) => setFormData({ ...formData, salePrice: e.target.value })}
                   placeholder="0.00"
+                  className="h-9 text-sm"
                 />
-                <p className="text-xs text-text-secondary">Current selling price</p>
+                <p className="text-[10px] text-text-secondary hidden sm:block">Current selling price</p>
               </div>
 
-              <div className="space-y-2">
-                <Label>Discount</Label>
-                <div className="h-10 flex items-center">
+              <div className="space-y-1.5 col-span-2 sm:col-span-1">
+                <Label className="text-xs sm:text-sm">Discount</Label>
+                <div className="h-9 flex items-center">
                   {discount > 0 ? (
-                    <Badge variant="default" className="text-lg">
+                    <Badge variant="default" className="text-sm sm:text-base">
                       {discount}% OFF
                     </Badge>
                   ) : (
-                    <span className="text-sm text-text-secondary">No discount</span>
+                    <span className="text-xs sm:text-sm text-text-secondary">No discount</span>
                   )}
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="stock">Stock Quantity *</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="stock" className="text-xs sm:text-sm">Stock Quantity *</Label>
                 <Input
                   id="stock"
                   type="number"
+                  inputMode="numeric"
                   required
                   value={formData.stock}
                   onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
                   placeholder="0"
-                  className={hasVariants ? "border-primary/50" : ""}
+                  className={`h-9 text-sm ${hasVariants ? "border-primary/50" : ""}`}
                 />
                 {hasVariants && (
-                  <div className={`text-xs mt-1 font-medium ${remainingStock < 0 ? "text-destructive" : "text-emerald-600"}`}>
+                  <div className={`text-[10px] sm:text-xs mt-1 font-medium ${remainingStock < 0 ? "text-destructive" : "text-emerald-600"}`}>
                     {remainingStock >= 0
                       ? `${remainingStock} remaining to assign`
-                      : `${Math.abs(remainingStock)} over assigned! Increase total stock.`}
+                      : `${Math.abs(remainingStock)} over assigned!`}
                   </div>
                 )}
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="sku" className="flex items-center gap-1">
-                    SKU (Optional)
-                    <div title="Stock Keeping Unit: A unique code to track inventory. Click the wand to generate one." className="cursor-help text-text-secondary">
-                      <Info className="h-4 w-4" />
+                  <Label htmlFor="sku" className="flex items-center gap-1 text-xs sm:text-sm">
+                    SKU
+                    <span className="font-normal text-text-secondary">(optional)</span>
+                    <div title="Unique inventory code. Leave empty to auto-generate." className="cursor-help text-text-secondary">
+                      <Info className="h-3.5 w-3.5" />
                     </div>
                   </Label>
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-6 text-xs text-primary gap-1"
+                    className="h-6 text-[10px] sm:text-xs text-primary gap-1 px-2"
                     onClick={() => setFormData({ ...formData, sku: generateSKU() })}
                   >
                     <Wand2 className="h-3 w-3" /> Generate
@@ -1160,18 +1201,19 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
                   id="sku"
                   value={formData.sku}
                   onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                  placeholder="e.g. WMN-DRS-001"
+                  placeholder="Auto-generated if empty"
+                  className="h-9 text-sm"
                 />
                 <p className="text-[10px] text-text-secondary">
-                  Unique ID for inventory tracking. Leave empty to auto-assign internal ID.
+                  Leave empty — a unique SKU will be auto-generated.
                 </p>
               </div>
 
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="promotion">Apply Promotion (Optional)</Label>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="promotion" className="text-xs sm:text-sm">Apply Promotion (Optional)</Label>
                 <select
                   id="promotion"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={formData.promotionId}
                   onChange={(e) => setFormData({ ...formData, promotionId: e.target.value })}
                 >
@@ -1189,132 +1231,164 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
 
         {/* Variants Manager */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Tag className="h-5 w-5" />
-                  Product Variants (Colors)
-                </div>
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="hasVariants" className="text-sm font-normal text-text-secondary">Enable Variants?</Label>
-                  <input
-                    type="checkbox"
-                    id="hasVariants"
-                    className="toggle-checkbox h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary"
-                    checked={hasVariants}
-                    onChange={(e) => setHasVariants(e.target.checked)}
-                  />
-                </div>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center justify-between text-base sm:text-lg">
+              <div className="flex items-center gap-2">
+                <Tag className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span>Variants</span>
+                <span className="text-xs font-normal text-text-secondary hidden sm:inline">(Colors / Sizes)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="hasVariants" className="text-xs sm:text-sm font-normal text-text-secondary cursor-pointer">Enable?</Label>
+                <input
+                  type="checkbox"
+                  id="hasVariants"
+                  className="toggle-checkbox h-4 w-4 sm:h-5 sm:w-5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                  checked={hasVariants}
+                  onChange={(e) => setHasVariants(e.target.checked)}
+                />
               </div>
             </CardTitle>
           </CardHeader>
           {hasVariants && (
-            <CardContent className="space-y-6">
-              <div className="flex gap-4 items-end flex-wrap">
-                <div className="space-y-2 flex-1 min-w-[150px]">
-                  <Label>Color</Label>
-                  <div className="relative flex items-center gap-2">
+            <CardContent className="space-y-4">
+              {/* Variant input grid — 2-col on mobile, wraps naturally */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="space-y-1.5 col-span-2 sm:col-span-1">
+                  <Label className="text-xs sm:text-sm">Color *</Label>
+                  <div className="relative flex items-center gap-1.5">
                     <div className="relative flex-1">
                       <Input
                         placeholder="e.g. Red, Navy"
                         value={variantInput.color}
                         onChange={handleColorChange}
-                        className="pl-9"
+                        className="pl-8 h-9 text-sm"
                       />
                       <div
-                        className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border shadow-sm"
+                        className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border shadow-sm flex-shrink-0"
                         style={{ backgroundColor: variantInput.hex || '#000000' }}
                       />
                     </div>
-                    <div title="Pick the exact color">
+                    <div title="Pick exact color" className="flex-shrink-0">
                       <Input
                         type="color"
-                        className="w-12 h-10 p-1 cursor-pointer"
+                        className="w-9 h-9 p-0.5 cursor-pointer"
                         value={variantInput.hex || '#000000'}
                         onChange={(e) => setVariantInput({ ...variantInput, hex: e.target.value })}
                       />
                     </div>
                   </div>
                 </div>
-                <div className="space-y-2 w-32">
-                  <Label>Size</Label>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs sm:text-sm">Size</Label>
                   <Input
                     placeholder="e.g. XL, 42"
                     value={variantInput.size}
                     onChange={handleSizeChange}
+                    className="h-9 text-sm"
                   />
                 </div>
-                <div className="space-y-2 w-32">
-                  <Label>SKU</Label>
-                  <Input
-                    placeholder="Optional"
-                    value={variantInput.sku}
-                    onChange={(e) => setVariantInput({ ...variantInput, sku: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2 w-24">
-                  <Label>Stock</Label>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs sm:text-sm">Stock</Label>
                   <Input
                     type="number"
+                    inputMode="numeric"
                     placeholder="0"
                     value={variantInput.stock}
                     onChange={(e) => setVariantInput({ ...variantInput, stock: parseInt(e.target.value) || 0 })}
+                    className="h-9 text-sm"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Image (Optional)</Label>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs sm:text-sm">SKU (optional)</Label>
+                  <Input
+                    placeholder="Auto"
+                    value={variantInput.sku}
+                    onChange={(e) => setVariantInput({ ...variantInput, sku: e.target.value })}
+                    className="h-9 text-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs sm:text-sm">Image</Label>
                   <div className="flex items-center gap-2">
                     {variantInput.image_url ? (
-                      <div className="relative h-10 w-10 rounded border overflow-hidden">
+                      <div className="relative h-9 w-9 rounded border overflow-hidden flex-shrink-0">
                         <Image src={variantInput.image_url} alt="Variant" fill className="object-cover" />
                         <button
                           type="button"
                           className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 flex items-center justify-center text-white"
                           onClick={() => setVariantInput({ ...variantInput, image_url: "" })}
                         >
-                          <X className="h-4 w-4" />
+                          <X className="h-3 w-3" />
                         </button>
                       </div>
                     ) : (
-                      <Input
-                        type="file"
-                        className="w-48"
-                        accept="image/*"
-                        onChange={handleVariantImageUpload}
-                        disabled={isUploading}
-                      />
+                      <label className="flex items-center gap-1.5 cursor-pointer h-9 px-3 rounded-md border border-input text-xs text-text-secondary hover:bg-muted/50 transition-colors w-full">
+                        <Upload className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span className="truncate">{isUploading ? "Uploading..." : "Upload"}</span>
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="image/*"
+                          onChange={handleVariantImageUpload}
+                          disabled={isUploading}
+                        />
+                      </label>
                     )}
                   </div>
                 </div>
-                <Button type="button" onClick={handleAddVariant} disabled={!variantInput.name || isUploading}>
-                  <Plus className="h-4 w-4 mr-1" /> Add
-                </Button>
+
+                <div className="flex items-end">
+                  <Button
+                    type="button"
+                    onClick={handleAddVariant}
+                    disabled={!variantInput.color || isUploading}
+                    size="sm"
+                    className="w-full h-9 text-xs sm:text-sm"
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Add Variant
+                  </Button>
+                </div>
               </div>
 
-              <div className="border rounded-lg divide-y">
+              {/* Variants list */}
+              <div className="border rounded-lg divide-y overflow-hidden">
                 {variants.length === 0 ? (
-                  <div className="p-8 text-center text-sm text-text-secondary">
-                    No variants added yet. Add colors or options above.
+                  <div className="p-6 text-center text-xs sm:text-sm text-text-secondary">
+                    No variants added yet. Fill in the fields above and click Add Variant.
                   </div>
                 ) : (
                   variants.map((variant, idx) => (
-                    <div key={idx} className="p-3 flex items-center justify-between hover:bg-muted/30">
-                      <div className="flex items-center gap-4">
-                        <div className="h-10 w-10 rounded border bg-gray-50 flex-shrink-0 relative overflow-hidden">
+                    <div key={idx} className="p-2.5 sm:p-3 flex items-center justify-between hover:bg-muted/30 gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div
+                          className="h-8 w-8 sm:h-9 sm:w-9 rounded border flex-shrink-0 relative overflow-hidden"
+                          style={variant.image_url ? {} : { backgroundColor: variant.hex || '#ccc' }}
+                        >
                           {variant.image_url ? (
                             <Image src={variant.image_url} alt={variant.name} fill className="object-cover" />
-                          ) : (
-                            <Tag className="h-4 w-4 m-auto text-gray-400" />
-                          )}
+                          ) : null}
                         </div>
-                        <div>
-                          <p className="font-medium text-sm">{variant.color} {variant.size && `- ${variant.size}`}</p>
-                          <p className="text-xs text-text-secondary">SKU: {variant.sku || "N/A"} • Stock: {variant.stock}</p>
+                        <div className="min-w-0">
+                          <p className="font-medium text-xs sm:text-sm truncate">
+                            {variant.color}{variant.size ? ` — ${variant.size}` : ""}
+                          </p>
+                          <p className="text-[10px] sm:text-xs text-text-secondary">
+                            Stock: {variant.stock}{variant.sku ? ` · SKU: ${variant.sku}` : ""}
+                          </p>
                         </div>
                       </div>
-                      <Button variant="ghost" size="sm" onClick={() => handleRemoveVariant(idx)} className="text-destructive hover:text-destructive">
-                        <Trash2 className="h-4 w-4" />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveVariant(idx)}
+                        className="text-destructive hover:text-destructive flex-shrink-0 h-7 w-7 p-0"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   ))
@@ -1327,15 +1401,14 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
         {/* Images - Hidden if Variants Enabled (Source of Truth is Variants) */}
         {!hasVariants && (
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ImageIcon className="h-5 w-5" />
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <ImageIcon className="h-4 w-4 sm:h-5 sm:w-5" />
                 Product Images *
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* ... Standard Image Upload UI ... */}
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
                 {images.map((img, idx) => (
                   <div key={idx} className="relative group aspect-square">
                     <div className="relative h-full w-full rounded-lg overflow-hidden border-2 border-border-light bg-gray-50">
@@ -1433,9 +1506,9 @@ export function ProductForm({ initialData, isEditing = false }: ProductFormProps
 
         {/* Tags & SEO */}
         < Card >
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Tag className="h-5 w-5" />
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Tag className="h-4 w-4 sm:h-5 sm:w-5" />
               Tags & SEO
             </CardTitle>
           </CardHeader>
